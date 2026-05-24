@@ -1,0 +1,239 @@
+module [
+    read_number,
+    read_keyword_number,
+]
+
+import Kdl.Stream as Stream
+
+###############################################################################
+# IEEE 754 constants
+###############################################################################
+inf : F64
+inf = Num.infinity_f64
+
+neg_inf : F64
+neg_inf = Num.neg Num.infinity_f64
+
+nan : F64
+nan = Num.nan_f64
+
+###############################################################################
+# High-Level Number handling
+###############################################################################
+# Dispatches based on prefix: 0x → hex, 0o → octal, 0b → binary, else decimal.
+read_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral]
+read_number = |input|
+    when Stream.first_byte input is
+        Err _ -> Err InvalidNumericLiteral
+        Ok byte ->
+            if byte == 48 then  # '0'
+                after_zero = Stream.advance_one input
+                when Stream.first_byte after_zero is
+                    Err _ ->
+                        Ok { float_value: 0.0, next: after_zero }
+                    Ok next_byte ->
+                        when next_byte is
+                            120 -> read_hex_number (Stream.advance_one after_zero)      # 'x'
+                            111 -> read_octal_number (Stream.advance_one after_zero)    # 'o'
+                            98  -> read_binary_number (Stream.advance_one after_zero)   # 'b'
+                            _   -> read_decimal_number input
+            else
+                read_decimal_number input
+
+###############################################################################
+# Decimal
+###############################################################################
+read_decimal_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral]
+read_decimal_number = |input|
+    after_sign = skip_sign input
+    when collect_number_str after_sign "" is
+        Err _ -> Err InvalidNumericLiteral
+        Ok { num_str, next } ->
+            when Str.to_f64 num_str is
+                Err _ -> Err InvalidNumericLiteral
+                Ok val -> Ok { float_value: val, next }
+
+skip_sign : Str -> Str
+skip_sign = |input|
+    when Stream.first_byte input is
+        Err _ -> input
+        Ok byte ->
+            if byte == 43 or byte == 45 then Stream.advance_one input else input  # '+' or '-'
+
+# Collect a number string (digits, '.', 'e', 'E', '+', '-', '_').
+# Stops at the first character that isn't part of a number.
+collect_number_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
+collect_number_str = |input, acc|
+    when Stream.first_byte input is
+        Err _ ->
+            if Str.is_empty acc then Err InvalidNumericLiteral
+            else Ok { num_str: strip_underscores acc, next: input }
+        Ok byte ->
+            if (byte >= 48 and byte <= 57) or byte == 46 or byte == 69 or byte == 101 or byte == 95 or byte == 43 or byte == 45 then
+                char_str = Str.from_utf8 [byte] |> result_or_empty
+                collect_number_str (Stream.advance_one input) (Str.concat acc char_str)
+            else if Str.is_empty acc then
+                Err InvalidNumericLiteral
+            else
+                Ok { num_str: strip_underscores acc, next: input }
+
+result_or_empty : Result Str [BadUtf8 _] -> Str
+result_or_empty = |r|
+    when r is
+        Ok s -> s
+        Err _ -> ""
+
+strip_underscores : Str -> Str
+strip_underscores = |s|
+    bytes = Str.to_utf8 s
+    filtered = List.keep_if bytes |b| b != 95
+    when Str.from_utf8 filtered is
+        Ok s2 -> s2
+        Err _ -> ""
+
+###############################################################################
+# Hexadecimal
+###############################################################################
+read_hex_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral]
+read_hex_number = |input|
+    when collect_hex_str input "" is
+        Err _ -> Err InvalidNumericLiteral
+        Ok { num_str, next } ->
+            when parse_hex_to_u64 num_str is
+                Err _ -> Err InvalidNumericLiteral
+                Ok val -> Ok { float_value: Num.to_f64 val, next }
+
+collect_hex_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
+collect_hex_str = |input, acc|
+    when Stream.first_byte input is
+        Err _ ->
+            if Str.is_empty acc then Err InvalidNumericLiteral
+            else Ok { num_str: strip_underscores acc, next: input }
+        Ok byte ->
+            if Stream.is_hex_digit(byte) or byte == 95 then
+                char_str = Str.from_utf8 [byte] |> result_or_empty
+                collect_hex_str (Stream.advance_one input) (Str.concat acc char_str)
+            else if Str.is_empty acc then
+                Err InvalidNumericLiteral
+            else
+                Ok { num_str: strip_underscores acc, next: input }
+
+parse_hex_to_u64 : Str -> Result U64 [InvalidNumericLiteral]
+parse_hex_to_u64 = |str|
+    bytes = Str.to_utf8 str
+    when List.walk bytes (Ok 0) |state_result, byte|
+        when state_result is
+            Err _ -> Err InvalidNumericLiteral
+            Ok acc -> Ok (acc * 16 + hex_byte_to_u64 byte)
+    is
+        Err _ -> Err InvalidNumericLiteral
+        Ok result -> Ok result
+
+hex_byte_to_u64 : U8 -> U64
+hex_byte_to_u64 = |byte| Stream.hex_value byte |> Num.to_u64
+
+###############################################################################
+# Octal
+###############################################################################
+read_octal_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral]
+read_octal_number = |input|
+    when collect_octal_str input "" is
+        Err _ -> Err InvalidNumericLiteral
+        Ok { num_str, next } ->
+            when parse_octal_to_u64 num_str is
+                Err _ -> Err InvalidNumericLiteral
+                Ok val -> Ok { float_value: Num.to_f64 val, next }
+
+collect_octal_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
+collect_octal_str = |input, acc|
+    when Stream.first_byte input is
+        Err _ ->
+            if Str.is_empty acc then Err InvalidNumericLiteral
+            else Ok { num_str: acc, next: input }
+        Ok byte ->
+            if (byte >= 48 and byte <= 55) or byte == 95 then
+                char_str = Str.from_utf8 [byte] |> result_or_empty
+                collect_octal_str (Stream.advance_one input) (Str.concat acc char_str)
+            else if Str.is_empty acc then
+                Err InvalidNumericLiteral
+            else
+                Ok { num_str: strip_underscores acc, next: input }
+
+parse_octal_to_u64 : Str -> Result U64 [InvalidNumericLiteral]
+parse_octal_to_u64 = |str|
+    bytes = Str.to_utf8 str
+    when List.walk bytes (Ok 0) |state_result, byte|
+        when state_result is
+            Err _ -> Err InvalidNumericLiteral
+            Ok acc -> Ok (acc * 8 + Num.to_u64 (byte - 48))
+    is
+        Err _ -> Err InvalidNumericLiteral
+        Ok result -> Ok result
+
+###############################################################################
+# Binary
+###############################################################################
+read_binary_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral]
+read_binary_number = |input|
+    when collect_binary_str input "" is
+        Err _ -> Err InvalidNumericLiteral
+        Ok { num_str, next } ->
+            when parse_binary_to_u64 num_str is
+                Err _ -> Err InvalidNumericLiteral
+                Ok val -> Ok { float_value: Num.to_f64 val, next }
+
+collect_binary_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
+collect_binary_str = |input, acc|
+    when Stream.first_byte input is
+        Err _ ->
+            if Str.is_empty acc then Err InvalidNumericLiteral
+            else Ok { num_str: acc, next: input }
+        Ok byte ->
+            if byte == 48 or byte == 49 or byte == 95 then
+                char_str = Str.from_utf8 [byte] |> result_or_empty
+                collect_binary_str (Stream.advance_one input) (Str.concat acc char_str)
+            else if Str.is_empty acc then
+                Err InvalidNumericLiteral
+            else
+                Ok { num_str: strip_underscores acc, next: input }
+
+parse_binary_to_u64 : Str -> Result U64 [InvalidNumericLiteral]
+parse_binary_to_u64 = |str|
+    bytes = Str.to_utf8 str
+    when List.walk bytes (Ok 0) |state_result, byte|
+        when state_result is
+            Err _ -> Err InvalidNumericLiteral
+            Ok acc -> Ok (acc * 2 + Num.to_u64 (byte - 48))
+    is
+        Err _ -> Err InvalidNumericLiteral
+        Ok result -> Ok result
+
+###############################################################################
+# Special Number Types: Inf, -Inf, NaN
+###############################################################################
+read_keyword_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral, EndOfBuffer]
+read_keyword_number = |input|
+    when Stream.first_byte input is
+        Err _ -> Err EndOfBuffer
+        Ok byte ->
+            if byte != 35 then Err InvalidNumericLiteral  # '#'
+            else
+                after_hash = Stream.advance_one input
+                when Stream.first_byte after_hash is
+                    Err _ -> Err InvalidNumericLiteral
+                    Ok next_byte ->
+                        when next_byte is
+                            105 -> expect_keyword after_hash "inf" inf
+                            110 -> expect_keyword after_hash "nan" nan
+                            45  ->
+                                after_dash = Stream.advance_one after_hash
+                                expect_keyword after_dash "inf" neg_inf
+                            _ -> Err InvalidNumericLiteral
+
+expect_keyword : Str, Str, F64 -> Result { float_value : F64, next : Str } [InvalidNumericLiteral]
+expect_keyword = |input, expected, value|
+    if Str.starts_with input expected then
+        after_word = Str.drop_prefix input expected
+        Ok { float_value: value, next: after_word }
+    else
+        Err InvalidNumericLiteral
