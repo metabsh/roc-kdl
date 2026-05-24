@@ -2,6 +2,7 @@ module [
     read_identifier,
     read_quoted_string,
     read_raw_string,
+    read_multi_line_string,
     is_ident_start,
 ]
 
@@ -284,4 +285,12 @@ read_raw_single_line_body = |_input, _hash_count|
 
 read_raw_multi_line_body : Str, U64 -> Result { string_value : Str, next : Str } [UnterminatedString, InvalidUtf8, DisallowedCodePoint]
 read_raw_multi_line_body = |_input, _hash_count|
+    Err UnterminatedString
+
+###############################################################################
+# Multiline String
+###############################################################################
+# TODO: implement this
+read_multi_line_string : Str -> Result { string_value : Str, next : Str } [UnterminatedString, InvalidEscape, InvalidUtf8, DisallowedCodePoint, InvalidDedent]
+read_multi_line_string = |_input|
     Err UnterminatedString
