@@ -26,3 +26,15 @@ KdlNode : [KdlNodeRecord {
     children : List KdlNode,
 }]
 
+KdlError : [
+    KdlFormatError,
+    InvalidIdentifier,
+    InvalidNumericLiteral,
+    InvalidTypeAnnotation Str,
+    InvalidUtf8,
+    MalformedAnnotation,
+    NoAnnotationFound,
+    NoIdentifierFound,
+    UnexpectedEof,
+    UnterminatedString,
+]
