@@ -11,8 +11,17 @@ module [
     hex_value,
 ]
 
+###############################################################################
+# Cursor Primities
+###############################################################################
 starts_with : Str, Str -> Bool
 starts_with = |str, prefix| Str.starts_with str prefix
+
+expect
+    starts_with "hello" "hel" == Bool.true
+
+expect
+    starts_with "hello" "foo" == Bool.false
 
 drop_prefix : Str, Str -> Str
 drop_prefix = |str, prefix| Str.drop_prefix str prefix
@@ -24,6 +33,12 @@ first_byte = |str|
     when bytes is
         [c, ..] -> Ok c
         [] -> Err EndOfStream
+
+expect
+    result = first_byte "ABC"
+    when result is
+        Ok 65 -> Bool.true
+        _ -> Bool.false
 
 # Skip n bytes from the start of the string.
 skip_bytes : Str, U64 -> Str
