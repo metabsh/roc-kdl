@@ -64,8 +64,14 @@ skip_while = |str, pred|
             else
                 str
 
+###############################################################################
+# Character Classification
+###############################################################################
 is_whitespace : U8 -> Bool
 is_whitespace = |c| c == 9 or c == 32  # TAB, SPACE
+
+expect
+    is_whitespace 32 == Bool.true
 
 is_newline : U8 -> Bool
 is_newline = |c| c == 10 or c == 13  # LF, CR
@@ -73,6 +79,9 @@ is_newline = |c| c == 10 or c == 13  # LF, CR
 is_hex_digit : U8 -> Bool
 is_hex_digit = |c|
     (c >= 48 and c <= 57) or (c >= 65 and c <= 70) or (c >= 97 and c <= 102)
+
+expect
+    is_hex_digit 70 == Bool.true
 
 hex_value : U8 -> U8
 hex_value = |c|
