@@ -1,6 +1,7 @@
 module [
     KdlValue,
     KdlNode,
+    KdlError,
     Entry,
 ]
 
