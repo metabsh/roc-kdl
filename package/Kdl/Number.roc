@@ -62,6 +62,7 @@ skip_sign = |input|
 
 # Collect a number string (digits, '.', 'e', 'E', '+', '-', '_').
 # Stops at the first character that isn't part of a number.
+# Rejects numbers starting with '.' (no integer part).
 collect_number_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
 collect_number_str = |input, acc|
     when Stream.first_byte input is
@@ -69,9 +70,23 @@ collect_number_str = |input, acc|
             if Str.is_empty acc then Err InvalidNumericLiteral
             else Ok { num_str: strip_underscores acc, next: input }
         Ok byte ->
-            if (byte >= 48 and byte <= 57) or byte == 46 or byte == 69 or byte == 101 or byte == 95 or byte == 43 or byte == 45 then
+            if byte >= 48 and byte <= 57 then
                 char_str = Str.from_utf8 [byte] |> result_or_empty
                 collect_number_str (Stream.advance_one input) (Str.concat acc char_str)
+            else if byte == 46 then
+                # '.' only valid if we've already seen a digit
+                if Str.is_empty acc then
+                    Err InvalidNumericLiteral
+                else
+                    char_str = Str.from_utf8 [byte] |> result_or_empty
+                    collect_number_str (Stream.advance_one input) (Str.concat acc char_str)
+            else if (byte == 69 or byte == 101) or byte == 95 or byte == 43 or byte == 45 then
+                # 'e', 'E', '_', '+', '-' only valid after at least one digit
+                if Str.is_empty acc then
+                    Err InvalidNumericLiteral
+                else
+                    char_str = Str.from_utf8 [byte] |> result_or_empty
+                    collect_number_str (Stream.advance_one input) (Str.concat acc char_str)
             else if Str.is_empty acc then
                 Err InvalidNumericLiteral
             else
@@ -154,6 +169,9 @@ collect_octal_str = |input, acc|
             if (byte >= 48 and byte <= 55) or byte == 95 then
                 char_str = Str.from_utf8 [byte] |> result_or_empty
                 collect_octal_str (Stream.advance_one input) (Str.concat acc char_str)
+            else if byte >= 48 and byte <= 57 then
+                # 8-9: invalid octal digit
+                Err InvalidNumericLiteral
             else if Str.is_empty acc then
                 Err InvalidNumericLiteral
             else
@@ -192,6 +210,9 @@ collect_binary_str = |input, acc|
             if byte == 48 or byte == 49 or byte == 95 then
                 char_str = Str.from_utf8 [byte] |> result_or_empty
                 collect_binary_str (Stream.advance_one input) (Str.concat acc char_str)
+            else if byte >= 50 and byte <= 57 then
+                # 2-9: invalid binary digit
+                Err InvalidNumericLiteral
             else if Str.is_empty acc then
                 Err InvalidNumericLiteral
             else

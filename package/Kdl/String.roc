@@ -22,7 +22,10 @@ read_identifier = |input|
             when validate_first_char first_byte is
                 Err _ -> Err InvalidIdentifier
                 Ok _ ->
-                    finish_identifier input ""
+                    after_first = Stream.advance_one input
+                    when validate_lookahead first_byte after_first is
+                        Err _ -> Err InvalidIdentifier
+                        Ok _ -> finish_identifier input ""
 
 finish_identifier : Str, Str -> Result { string_value : Str, next : Str } [InvalidIdentifier, ReservedKeyword, EndOfBuffer]
 finish_identifier = |input, acc|
@@ -33,8 +36,10 @@ finish_identifier = |input, acc|
             else Ok { string_value: acc, next: input }
         Ok byte ->
             if is_non_ident_char byte then
-                if Str.is_empty acc then Err InvalidIdentifier
-                else if is_reserved_keyword acc then Err ReservedKeyword
+                if Str.is_empty acc then
+                    Err InvalidIdentifier
+                else if is_reserved_keyword acc then
+                    Err ReservedKeyword
                 else Ok { string_value: acc, next: input }
             else
                 char_str = Str.from_utf8 [byte] |> result_or_empty
@@ -46,10 +51,49 @@ result_or_empty = |r|
         Ok s -> s
         Err _ -> ""
 
-# Validate that the first byte of an identifier is allowed by KDL 2.0 rules
+# Validate that the first byte of an identifier is allowed by KDL 2.0 rules.
+# Digits and non-identifier chars are rejected.
+# +, -, and . require lookahead: if followed by a digit, the identifier is invalid
+# (to avoid ambiguity with numbers like +1, -1, .5).
 validate_first_char : U8 -> Result {} [InvalidIdentifier]
 validate_first_char = |byte|
-    if is_ascii_digit byte or is_non_ident_char byte then Err InvalidIdentifier else Ok {}
+    if is_ascii_digit byte or is_non_ident_char byte then
+        Err InvalidIdentifier
+    else
+        Ok {}
+
+# Validate lookahead rules: +, -, . followed by a digit is an invalid identifier.
+# Call this with the first byte and the remaining input after it.
+validate_lookahead : U8, Str -> Result {} [InvalidIdentifier]
+validate_lookahead = |first, rest|
+    if first == 43 or first == 45 then
+        # '+' or '-': second char must not be a digit.
+        # If second is '.', third must not be a digit.
+        when Stream.first_byte rest is
+            Err _ -> Ok {}
+            Ok second ->
+                if is_ascii_digit second then
+                    Err InvalidIdentifier
+                else if second == 46 then
+                    after_dot = Stream.advance_one rest
+                    when Stream.first_byte after_dot is
+                        Err _ -> Ok {}
+                        Ok third ->
+                            if is_ascii_digit third then
+                                Err InvalidIdentifier
+                            else Ok {}
+                else
+                    Ok {}
+    else if first == 46 then
+        # '.': second char must not be a digit
+        when Stream.first_byte rest is
+            Err _ -> Ok {}
+            Ok second ->
+                if is_ascii_digit second then
+                    Err InvalidIdentifier
+                else Ok {}
+    else
+        Ok {}
 
 is_ascii_digit : U8 -> Bool
 is_ascii_digit = |byte| byte >= 48 and byte <= 57
