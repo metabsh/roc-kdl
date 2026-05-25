@@ -45,6 +45,7 @@ Token : [
     ChildStart,
     ChildEnd,
     IdentifierStart,
+    Slashdash,
     EndOfStream,
 ]
 
@@ -186,7 +187,9 @@ peek_token = |input|
     when first_byte clean is
         Err _ -> EndOfStream
         Ok byte ->
-            if byte == quotation_mark then
+            if Str.starts_with clean "/-" then
+                Slashdash
+            else if byte == quotation_mark then
                 StringLiteral
             else if byte == hyphen_minus then
                 after_dash = advance_one clean
