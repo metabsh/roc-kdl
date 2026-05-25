@@ -1,2 +1,3 @@
 [tools]
 "github:roc-lang/roc" = "alpha4-rolling"
+python = "latest"
