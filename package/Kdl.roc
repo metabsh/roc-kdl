@@ -131,3 +131,13 @@ expect
     when result is
         Ok nodes -> List.len nodes == 2
         _ -> Bool.false
+
+expect
+    # optional_child_semicolon: no ; after } at EOF
+    result = parse "node {foo;bar;baz}"
+    Result.is_ok result
+
+expect
+    # semicolon_after_child: ; after } on next line
+    result = parse "node {\n     childnode\n};\n"
+    Result.is_ok result

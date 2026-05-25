@@ -19,7 +19,7 @@ file IO when running a proper test.
 | Numbers (keyword) | ✅ | 1/1 | `floating_point_keywords.kdl` — `#inf`, `#-inf`, `#nan` |
 | Booleans & null | ✅ | 2/2 | `boolean_arg.kdl`, `boolean_prop.kdl` — `#true`/`#false`/`#null` |
 | Properties (`key=value`) | ✅ | 11/11 | `arg_and_prop_same_name.kdl`, ordering, duplicate keys |
-| Children blocks | 🚧 | 8/10 | 🚨 2 bugs: optional semicolon after children not handled |
+| Children blocks | ✅ | 10/10 | |
 | Multiple nodes | ✅ | 5/5 | Semicolons, newlines, `crlf_between_nodes.kdl` |
 | Type annotations | 🚧 | 6/38 | Quoted/raw/blank/commented/spaced annotations fail |
 | Line comments (`//`) | 🚧 | 8/12 | `comment_and_newline` fixed; slashdash+comment edge cases remain |
@@ -32,4 +32,4 @@ file IO when running a proper test.
 | Identifier validation | 🚧 | 91/95 | 🚨 4 false-negatives: 1 spec interpretation, 3 multi-line/whitespace false passes |
 | BOM / version marker | ✅ | 1/1 | `bom_initial.kdl`; `bom_later_fail.kdl` grouped in fail cases |
 | Slashdash children | 🚧 | (in Slashdash) | `commented_child.kdl` |
-| **Total** | — | **258 / 338** | 80 failures: 2 bugs, 4 false-negatives, 47 unimplemented, 27 annotation gaps |
+| **Total** | — | **260 / 338** | 78 failures: 0 bugs, 4 false-negatives, 47 unimplemented, 27 annotation gaps |
