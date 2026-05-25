@@ -18,6 +18,9 @@ parse_nodes = |input, acc|
     when peek_token active is
         EndOfStream -> Ok { nodes: acc, next: active }
         ChildEnd -> Ok { nodes: acc, next: active }
+        NodeTerminator ->
+            after = skip_terminator active
+            parse_nodes after acc
         _ ->
             { stream: with_anno, annotation } =
                 when read_annotation active is
@@ -49,6 +52,9 @@ parse_node_body = |input, entries_acc|
             Ok { entries: entries_acc, children: [], next: after }
 
         EndOfStream ->
+            Ok { entries: entries_acc, children: [], next: active }
+
+        ChildEnd ->
             Ok { entries: entries_acc, children: [], next: active }
 
         ChildStart ->
