@@ -1,9 +1,9 @@
 module [
+    is_ident_start,
     read_identifier,
+    read_multi_line_string,
     read_quoted_string,
     read_raw_string,
-    read_multi_line_string,
-    is_ident_start,
 ]
 
 import Kdl.Stream as Stream

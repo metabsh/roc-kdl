@@ -1,8 +1,8 @@
 module [
-    KdlValue,
-    KdlNode,
-    KdlError,
     Entry,
+    KdlError,
+    KdlNode,
+    KdlValue,
 ]
 
 KdlValue : [

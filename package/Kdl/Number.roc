@@ -1,6 +1,6 @@
 module [
-    read_number,
     read_keyword_number,
+    read_number,
 ]
 
 import Kdl.Stream as Stream
