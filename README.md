@@ -24,7 +24,7 @@ file IO when running a proper test.
 | Type annotations | 🚧 | 6/38 | Quoted/raw/blank/commented/spaced annotations fail |
 | Line comments (`//`) | 🚧 | 8/12 | `comment_and_newline` fixed; slashdash+comment edge cases remain |
 | Block comments (`/* */`) | ✅ | 10/10 | Includes nesting |
-| Slashdash (`/-`) | 🚧 | 11/31 | Not yet implemented (passes are false-positives) |
+| Slashdash (`/-`) | 🚧 | 17/31 | Basic support: comments out next node/arg/prop/children; escline, multi-line comment, and raw prop key variants remain |
 | Line continuations (`\`) | 🚧 | 7/8 | Not yet implemented (passes are false-positives) |
 | Multi-line strings (`"""`) | 🚧 | 15/20 | Not yet implemented (false passes) |
 | Raw strings (`#"..."#`) | 🚧 | 5/10 | Not yet implemented (false passes) |
@@ -32,4 +32,4 @@ file IO when running a proper test.
 | Identifier validation | 🚧 | 91/95 | 🚨 4 false-negatives: 1 spec interpretation, 3 multi-line/whitespace false passes |
 | BOM / version marker | ✅ | 1/1 | `bom_initial.kdl`; `bom_later_fail.kdl` grouped in fail cases |
 | Slashdash children | 🚧 | (in Slashdash) | `commented_child.kdl` |
-| **Total** | — | **260 / 338** | 78 failures: 0 bugs, 4 false-negatives, 47 unimplemented, 27 annotation gaps |
+| **Total** | — | **266 / 338** | 72 failures: 0 bugs, 4 false-negatives, 41 unimplemented, 27 annotation gaps |
