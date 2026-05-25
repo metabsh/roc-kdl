@@ -22,7 +22,7 @@ file IO when running a proper test.
 | Children blocks | 🚧 | 8/10 | 🚨 2 bugs: optional semicolon after children not handled |
 | Multiple nodes | ✅ | 5/5 | Semicolons, newlines, `crlf_between_nodes.kdl` |
 | Type annotations | 🚧 | 6/38 | Quoted/raw/blank/commented/spaced annotations fail |
-| Line comments (`//`) | 🚧 | 7/12 | 🚨 1 bug: `comment_and_newline` boundary; slashdash+comment edge cases |
+| Line comments (`//`) | 🚧 | 8/12 | `comment_and_newline` fixed; slashdash+comment edge cases remain |
 | Block comments (`/* */`) | ✅ | 10/10 | Includes nesting |
 | Slashdash (`/-`) | 🚧 | 11/31 | Not yet implemented (passes are false-positives) |
 | Line continuations (`\`) | 🚧 | 7/8 | Not yet implemented (passes are false-positives) |
@@ -32,4 +32,4 @@ file IO when running a proper test.
 | Identifier validation | 🚧 | 91/95 | 🚨 4 false-negatives: 1 spec interpretation, 3 multi-line/whitespace false passes |
 | BOM / version marker | ✅ | 1/1 | `bom_initial.kdl`; `bom_later_fail.kdl` grouped in fail cases |
 | Slashdash children | 🚧 | (in Slashdash) | `commented_child.kdl` |
-| **Total** | — | **257 / 338** | 81 failures: 3 bugs, 4 false-negatives, 47 unimplemented, 27 annotation gaps |
+| **Total** | — | **258 / 338** | 80 failures: 2 bugs, 4 false-negatives, 47 unimplemented, 27 annotation gaps |

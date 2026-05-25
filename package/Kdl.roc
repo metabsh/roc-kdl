@@ -41,7 +41,7 @@ Entry : {
 }
 
 ###############################################################################
-# Public API
+# Public Parse API
 ###############################################################################
 parse : Str -> Result (List KdlNode) KdlError
 parse = Kdl.Parser.parse
@@ -95,4 +95,39 @@ expect
     result = parse "node port=8080"
     when result is
         Ok _ -> Bool.true
+        _ -> Bool.false
+
+expect
+    # CRLF between two nodes produces 2 nodes
+    result = parse "node1\r\nnode2\r\n"
+    when result is
+        Ok nodes -> List.len nodes == 2
+        _ -> Bool.false
+
+expect
+    # // comment followed by newline correctly terminates the node
+    result = parse "node1 // comment\nnode2\n"
+    when result is
+        Ok nodes -> List.len nodes == 2
+        _ -> Bool.false
+
+expect
+    # CR after // comment correctly terminates the node
+    result = parse "node1 // comment\rnode2\r"
+    when result is
+        Ok nodes -> List.len nodes == 2
+        _ -> Bool.false
+
+expect
+    # CRLF after // comment — both consumed as one unit
+    result = parse "node1 // comment\r\nnode2\r\n"
+    when result is
+        Ok nodes -> List.len nodes == 2
+        _ -> Bool.false
+
+expect
+    # children block without semicolon, followed by another node
+    result = parse "node1 {\nchild\n}\nnode2\n"
+    when result is
+        Ok nodes -> List.len nodes == 2
         _ -> Bool.false

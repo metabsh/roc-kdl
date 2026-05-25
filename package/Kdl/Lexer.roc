@@ -1,14 +1,14 @@
 module [
     Token,
-    skip_line_space,
-    skip_node_space,
     peek_token,
     read_annotation,
     read_identifier,
     read_value,
+    skip_line_space,
+    skip_node_space,
 ]
 
-import Kdl.Stream as Stream
+import Kdl.Stream as Stream exposing [advance_one, first_byte, is_newline, is_whitespace]
 import Kdl.String as String
 import Kdl.Number as Number
 import Kdl.Common exposing [KdlValue]
@@ -55,28 +55,28 @@ Token : [
 # CRLF is treated as a single newline.
 skip_line_space : Str -> Str
 skip_line_space = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> input
         Ok byte ->
-            if Stream.is_whitespace(byte) or Stream.is_newline(byte) then
+            if is_whitespace(byte) or is_newline(byte) then
                 after_nl =
                     if byte == carriage_return then
-                        after_cr = Stream.advance_one input
-                        when Stream.first_byte after_cr is
-                            Ok b -> if b == line_feed then Stream.advance_one after_cr else after_cr
+                        after_cr = advance_one input
+                        when first_byte after_cr is
+                            Ok b -> if b == line_feed then advance_one after_cr else after_cr
                             Err _ -> after_cr
                     else
-                        Stream.advance_one input
+                        advance_one input
                 skip_line_space after_nl
             else if byte == solidus then
-                after_slash = Stream.advance_one input
-                when Stream.first_byte after_slash is
+                after_slash = advance_one input
+                when first_byte after_slash is
                     Err _ -> input
                     Ok b ->
                         if b == solidus then
-                            skip_line_space (skip_line_comment (Stream.advance_one after_slash))
+                            skip_line_space (skip_line_comment (advance_one after_slash))
                         else if b == asterisk then
-                            when skip_block_comment (Stream.advance_one after_slash) is
+                            when skip_block_comment (advance_one after_slash) is
                                 Ok after_comment -> skip_line_space after_comment
                                 Err _ -> input
                         else
@@ -85,93 +85,93 @@ skip_line_space = |input|
                 input
 
 # Skip whitespace, block comments, and line continuations.
+# Also skips line comments (//) since they can appear within node bodies
+# and effectively terminate the current token.
 # Does NOT skip newlines (node-level only).
 skip_node_space : Str -> Str
 skip_node_space = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> input
         Ok byte ->
-            if Stream.is_whitespace(byte) then
-                skip_node_space (Stream.advance_one input)
+            if is_whitespace(byte) then
+                skip_node_space (advance_one input)
             else if byte == solidus then
-                after_slash = Stream.advance_one input
-                when Stream.first_byte after_slash is
+                after_slash = advance_one input
+                when first_byte after_slash is
                     Ok b ->
-                        if b == asterisk then
-                            when skip_block_comment (Stream.advance_one after_slash) is
+                        if b == solidus then
+                            # // line comment — skip comment content, leave newline for terminator detection
+                            skip_node_space (skip_line_comment (advance_one after_slash))
+                        else if b == asterisk then
+                            when skip_block_comment (advance_one after_slash) is
                                 Ok after_comment -> skip_node_space after_comment
                                 Err _ -> input
                         else
                             input
                     Err _ -> input
             else if byte == reverse_solidus then
-                when skip_escline (Stream.advance_one input) is
+                when skip_escline (advance_one input) is
                     Ok after_esc -> skip_node_space after_esc
                     Err _ -> input
             else
                 input
 
 # Skip a single-line comment (// ... up to newline or EOF).
+# The terminating newline is NOT consumed — it remains in the input.
 skip_line_comment : Str -> Str
 skip_line_comment = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> input
         Ok byte ->
-            if Stream.is_newline(byte) then
-                if byte == carriage_return then
-                    after_cr = Stream.advance_one input
-                    when Stream.first_byte after_cr is
-                        Ok b -> if b == line_feed then Stream.advance_one after_cr else after_cr
-                        Err _ -> after_cr
-                else
-                    Stream.advance_one input
+            if is_newline(byte) then
+                input
             else
-                skip_line_comment (Stream.advance_one input)
+                skip_line_comment (advance_one input)
 
 # Skip a block comment (/* ... */). Supports nested comments.
 skip_block_comment : Str -> Result Str [UnterminatedComment]
 skip_block_comment = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err UnterminatedComment
         Ok byte ->
             if byte == asterisk then
-                after_star = Stream.advance_one input
-                when Stream.first_byte after_star is
+                after_star = advance_one input
+                when first_byte after_star is
                     Ok b ->
-                        if b == solidus then Ok (Stream.advance_one after_star)
+                        if b == solidus then Ok (advance_one after_star)
                         else skip_block_comment after_star
                     Err _ -> skip_block_comment after_star
             else if byte == solidus then
-                after_slash = Stream.advance_one input
-                when Stream.first_byte after_slash is
+                after_slash = advance_one input
+                when first_byte after_slash is
                     Ok b ->
                         if b == asterisk then
-                            when skip_block_comment (Stream.advance_one after_slash) is
+                            when skip_block_comment (advance_one after_slash) is
                                 Ok after_inner -> skip_block_comment after_inner
                                 Err _ -> Err UnterminatedComment
                         else
                             skip_block_comment after_slash
                     Err _ -> skip_block_comment after_slash
             else
-                skip_block_comment (Stream.advance_one input)
+                skip_block_comment (advance_one input)
 
 # Skip an escape-line continuation: \ (whitespace | // comment)* newline
 skip_escline : Str -> Result Str [EndOfStream]
 skip_escline = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err EndOfStream
         Ok byte ->
-            if Stream.is_whitespace(byte) then
-                skip_escline (Stream.advance_one input)
+            if is_whitespace(byte) then
+                skip_escline (advance_one input)
             else if byte == solidus then
-                after_slash = Stream.advance_one input
-                when Stream.first_byte after_slash is
+                after_slash = advance_one input
+                when first_byte after_slash is
                     Ok b ->
-                        if b == solidus then Ok (skip_line_comment (Stream.advance_one after_slash))
+                        if b == solidus then Ok (advance_one (skip_line_comment (advance_one after_slash)))
                         else Ok input
                     Err _ -> Ok input
-            else if Stream.is_newline(byte) then
-                Ok (Stream.advance_one input)
+            else if is_newline(byte) then
+                Ok (advance_one input)
             else
                 Ok input
 
@@ -183,14 +183,14 @@ skip_escline = |input|
 peek_token : Str -> Token
 peek_token = |input|
     clean = skip_node_space input
-    when Stream.first_byte clean is
+    when first_byte clean is
         Err _ -> EndOfStream
         Ok byte ->
             if byte == quotation_mark then
                 StringLiteral
             else if byte == hyphen_minus then
-                after_dash = Stream.advance_one clean
-                when Stream.first_byte after_dash is
+                after_dash = advance_one clean
+                when first_byte after_dash is
                     Ok b -> if b >= digit_zero and b <= digit_nine then NumericLiteral else IdentifierStart
                     Err _ -> IdentifierStart
             else if byte == 59 or byte == line_feed or byte == carriage_return then
@@ -210,21 +210,21 @@ peek_token = |input|
 read_annotation : Str -> Result { annotation_name : Str, next : Str } [NoAnnotationFound, MalformedAnnotation]
 read_annotation = |input|
     clean = skip_node_space input
-    when Stream.first_byte clean is
+    when first_byte clean is
         Err _ -> Err NoAnnotationFound
         Ok byte ->
             if byte != left_paren then Err NoAnnotationFound
             else
-                after_open = Stream.advance_one clean
+                after_open = advance_one clean
                 inner_start = skip_node_space after_open
                 when String.read_identifier inner_start is
                     Err _ -> Err MalformedAnnotation
                     Ok { string_value, next } ->
                         before_close = skip_node_space next
-                        when Stream.first_byte before_close is
+                        when first_byte before_close is
                             Ok b ->
                                 if b == right_paren then
-                                    Ok { annotation_name: string_value, next: Stream.advance_one before_close }
+                                    Ok { annotation_name: string_value, next: advance_one before_close }
                                 else
                                     Err MalformedAnnotation
                             Err _ -> Err MalformedAnnotation
@@ -237,7 +237,7 @@ read_identifier = |input|
 read_value : Str -> Result { value : KdlValue, next : Str } LexerError
 read_value = |input|
     clean = skip_node_space input
-    when Stream.first_byte clean is
+    when first_byte clean is
         Err _ -> Err FormatError
         Ok byte ->
             if byte == quotation_mark then
@@ -274,17 +274,17 @@ read_hash_value = |input|
 read_keyword : Str -> Result { word : Str, after : Str } LexerError
 read_keyword = |input|
     # Skip the '#' character first
-    after_hash = Stream.advance_one input
+    after_hash = advance_one input
     loop_keyword after_hash ""
 
 loop_keyword : Str, Str -> Result { word : Str, after : Str } LexerError
 loop_keyword = |input, acc|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ ->
             if Str.is_empty acc then Err FormatError else Ok { word: acc, after: input }
         Ok byte ->
             if (byte >= 97 and byte <= 122) or byte == 45 then  # a-z, '-'
-                loop_keyword (Stream.advance_one input) (Str.concat acc (Str.from_utf8 [byte] |> result_or_empty))
+                loop_keyword (advance_one input) (Str.concat acc (Str.from_utf8 [byte] |> result_or_empty))
             else if Str.is_empty acc then
                 Err FormatError
             else
@@ -298,8 +298,8 @@ result_or_empty = |r|
 
 read_number_or_ident : Str -> Result { value : KdlValue, next : Str } LexerError
 read_number_or_ident = |input|
-    after_dash = Stream.advance_one input
-    when Stream.first_byte after_dash is
+    after_dash = advance_one input
+    when first_byte after_dash is
         Err _ -> Ok { value: KdlStr "-", next: after_dash }
         Ok next_byte ->
             if next_byte >= digit_zero and next_byte <= digit_nine then

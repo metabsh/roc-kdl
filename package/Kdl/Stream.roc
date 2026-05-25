@@ -1,14 +1,16 @@
 module [
-    starts_with,
+    advance_one,
     drop_prefix,
     first_byte,
-    skip_bytes,
-    advance_one,
-    skip_while,
-    is_whitespace,
-    is_newline,
-    is_hex_digit,
     hex_value,
+    is_hex_digit,
+    is_newline,
+    is_whitespace,
+    skip_bytes,
+    skip_newline,
+    skip_terminator,
+    skip_while,
+    starts_with,
 ]
 
 ###############################################################################
@@ -63,6 +65,30 @@ skip_while = |str, pred|
                 skip_while (advance_one str) pred
             else
                 str
+
+###############################################################################
+# Cursor Skips
+###############################################################################
+# Skip past a single newline sequence. CRLF is consumed as one unit.
+skip_newline : Str -> Str
+skip_newline = |str|
+    when first_byte str is
+        Err _ -> str
+        Ok 13 ->
+            after_cr = advance_one str
+            when first_byte after_cr is
+                Ok 10 -> advance_one after_cr
+                _ -> after_cr
+        Ok 10 -> advance_one str
+        _ -> str
+
+# Skip past a node terminator (newline or semicolon).
+skip_terminator : Str -> Str
+skip_terminator = |str|
+    when first_byte str is
+        Err _ -> str
+        Ok 59 -> advance_one str  # ';'
+        _ -> skip_newline str
 
 ###############################################################################
 # Character Classification
