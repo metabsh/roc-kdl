@@ -2,9 +2,9 @@ module [
     parse,
 ]
 
-import Kdl.Stream exposing [advance_one, first_byte, skip_terminator]
-import Kdl.Lexer exposing [peek_token, read_annotation, read_identifier, read_value, skip_line_space, skip_node_space]
-import Kdl.Common exposing [KdlNode, KdlError, Entry]
+import Kdl.Stream exposing [advance_one, first_byte, skip_line_space, skip_node_space, skip_terminator]
+import Kdl.Lexer exposing [peek_token, read_annotation, read_identifier, read_value]
+import Kdl.Common exposing [Entry, KdlError, KdlNode]
 
 parse : Str -> Result (List KdlNode) KdlError
 parse = |input|

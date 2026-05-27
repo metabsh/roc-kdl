@@ -3,7 +3,7 @@ module [
     read_number,
 ]
 
-import Kdl.Stream as Stream
+import Kdl.Stream exposing [advance_one, first_byte, hex_value, is_hex_digit]
 
 ###############################################################################
 # IEEE 754 constants
@@ -23,19 +23,19 @@ nan = Num.nan_f64
 # Dispatches based on prefix: 0x → hex, 0o → octal, 0b → binary, else decimal.
 read_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral]
 read_number = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err InvalidNumericLiteral
         Ok byte ->
             if byte == 48 then  # '0'
-                after_zero = Stream.advance_one input
-                when Stream.first_byte after_zero is
+                after_zero = advance_one input
+                when first_byte after_zero is
                     Err _ ->
                         Ok { float_value: 0.0, next: after_zero }
                     Ok next_byte ->
                         when next_byte is
-                            120 -> read_hex_number (Stream.advance_one after_zero)      # 'x'
-                            111 -> read_octal_number (Stream.advance_one after_zero)    # 'o'
-                            98  -> read_binary_number (Stream.advance_one after_zero)   # 'b'
+                            120 -> read_hex_number (advance_one after_zero)      # 'x'
+                            111 -> read_octal_number (advance_one after_zero)    # 'o'
+                            98  -> read_binary_number (advance_one after_zero)   # 'b'
                             _   -> read_decimal_number input
             else
                 read_decimal_number input
@@ -55,38 +55,38 @@ read_decimal_number = |input|
 
 skip_sign : Str -> Str
 skip_sign = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> input
         Ok byte ->
-            if byte == 43 or byte == 45 then Stream.advance_one input else input  # '+' or '-'
+            if byte == 43 or byte == 45 then advance_one input else input  # '+' or '-'
 
 # Collect a number string (digits, '.', 'e', 'E', '+', '-', '_').
 # Stops at the first character that isn't part of a number.
 # Rejects numbers starting with '.' (no integer part).
 collect_number_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
 collect_number_str = |input, acc|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ ->
             if Str.is_empty acc then Err InvalidNumericLiteral
             else Ok { num_str: strip_underscores acc, next: input }
         Ok byte ->
             if byte >= 48 and byte <= 57 then
                 char_str = Str.from_utf8 [byte] |> result_or_empty
-                collect_number_str (Stream.advance_one input) (Str.concat acc char_str)
+                collect_number_str (advance_one input) (Str.concat acc char_str)
             else if byte == 46 then
                 # '.' only valid if we've already seen a digit
                 if Str.is_empty acc then
                     Err InvalidNumericLiteral
                 else
                     char_str = Str.from_utf8 [byte] |> result_or_empty
-                    collect_number_str (Stream.advance_one input) (Str.concat acc char_str)
+                    collect_number_str (advance_one input) (Str.concat acc char_str)
             else if (byte == 69 or byte == 101) or byte == 95 or byte == 43 or byte == 45 then
                 # 'e', 'E', '_', '+', '-' only valid after at least one digit
                 if Str.is_empty acc then
                     Err InvalidNumericLiteral
                 else
                     char_str = Str.from_utf8 [byte] |> result_or_empty
-                    collect_number_str (Stream.advance_one input) (Str.concat acc char_str)
+                    collect_number_str (advance_one input) (Str.concat acc char_str)
             else if Str.is_empty acc then
                 Err InvalidNumericLiteral
             else
@@ -120,14 +120,14 @@ read_hex_number = |input|
 
 collect_hex_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
 collect_hex_str = |input, acc|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ ->
             if Str.is_empty acc then Err InvalidNumericLiteral
             else Ok { num_str: strip_underscores acc, next: input }
         Ok byte ->
-            if Stream.is_hex_digit(byte) or byte == 95 then
+            if is_hex_digit(byte) or byte == 95 then
                 char_str = Str.from_utf8 [byte] |> result_or_empty
-                collect_hex_str (Stream.advance_one input) (Str.concat acc char_str)
+                collect_hex_str (advance_one input) (Str.concat acc char_str)
             else if Str.is_empty acc then
                 Err InvalidNumericLiteral
             else
@@ -145,7 +145,7 @@ parse_hex_to_u64 = |str|
         Ok result -> Ok result
 
 hex_byte_to_u64 : U8 -> U64
-hex_byte_to_u64 = |byte| Stream.hex_value byte |> Num.to_u64
+hex_byte_to_u64 = |byte| hex_value byte |> Num.to_u64
 
 ###############################################################################
 # Octal
@@ -161,14 +161,14 @@ read_octal_number = |input|
 
 collect_octal_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
 collect_octal_str = |input, acc|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ ->
             if Str.is_empty acc then Err InvalidNumericLiteral
             else Ok { num_str: acc, next: input }
         Ok byte ->
             if (byte >= 48 and byte <= 55) or byte == 95 then
                 char_str = Str.from_utf8 [byte] |> result_or_empty
-                collect_octal_str (Stream.advance_one input) (Str.concat acc char_str)
+                collect_octal_str (advance_one input) (Str.concat acc char_str)
             else if byte >= 48 and byte <= 57 then
                 # 8-9: invalid octal digit
                 Err InvalidNumericLiteral
@@ -202,14 +202,14 @@ read_binary_number = |input|
 
 collect_binary_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
 collect_binary_str = |input, acc|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ ->
             if Str.is_empty acc then Err InvalidNumericLiteral
             else Ok { num_str: acc, next: input }
         Ok byte ->
             if byte == 48 or byte == 49 or byte == 95 then
                 char_str = Str.from_utf8 [byte] |> result_or_empty
-                collect_binary_str (Stream.advance_one input) (Str.concat acc char_str)
+                collect_binary_str (advance_one input) (Str.concat acc char_str)
             else if byte >= 50 and byte <= 57 then
                 # 2-9: invalid binary digit
                 Err InvalidNumericLiteral
@@ -234,20 +234,20 @@ parse_binary_to_u64 = |str|
 ###############################################################################
 read_keyword_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral, EndOfBuffer]
 read_keyword_number = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err EndOfBuffer
         Ok byte ->
             if byte != 35 then Err InvalidNumericLiteral  # '#'
             else
-                after_hash = Stream.advance_one input
-                when Stream.first_byte after_hash is
+                after_hash = advance_one input
+                when first_byte after_hash is
                     Err _ -> Err InvalidNumericLiteral
                     Ok next_byte ->
                         when next_byte is
                             105 -> expect_keyword after_hash "inf" inf
                             110 -> expect_keyword after_hash "nan" nan
                             45  ->
-                                after_dash = Stream.advance_one after_hash
+                                after_dash = advance_one after_hash
                                 expect_keyword after_dash "inf" neg_inf
                             _ -> Err InvalidNumericLiteral
 

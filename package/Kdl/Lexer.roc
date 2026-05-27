@@ -4,11 +4,9 @@ module [
     read_annotation,
     read_identifier,
     read_value,
-    skip_line_space,
-    skip_node_space,
 ]
 
-import Kdl.Stream as Stream exposing [advance_one, first_byte, is_newline, is_whitespace]
+import Kdl.Stream exposing [advance_one, carriage_return, digit_nine, digit_zero, first_byte, hyphen_minus, left_brace, left_paren, line_feed, number_sign, quotation_mark, right_brace, right_paren, skip_node_space]
 import Kdl.String as String
 import Kdl.Number as Number
 import Kdl.Common exposing [KdlValue]
@@ -20,24 +18,6 @@ LexerError : [
     UnterminatedString,
 ]
 
-###############################################################################
-# ASCII Constants (KDL Spec Names)
-###############################################################################
-quotation_mark = 34     # '"'
-left_paren = 40         # '('
-right_paren = 41        # ')'
-left_brace = 123        # '{'
-right_brace = 125       # '}'
-solidus = 47            # '/'
-reverse_solidus = 92    # '\'
-number_sign = 35        # '#'
-hyphen_minus = 45       # '-'
-line_feed = 10          # '\n'
-carriage_return = 13    # '\r'
-digit_zero = 48
-digit_nine = 57
-asterisk = 42           # '*'
-
 Token : [
     StringLiteral,
     NumericLiteral,
@@ -48,133 +28,6 @@ Token : [
     Slashdash,
     EndOfStream,
 ]
-
-###############################################################################
-# Layout Skipping
-###############################################################################
-# Skip whitespace, newlines, line comments (//), and block comments (/* */).
-# CRLF is treated as a single newline.
-skip_line_space : Str -> Str
-skip_line_space = |input|
-    when first_byte input is
-        Err _ -> input
-        Ok byte ->
-            if is_whitespace(byte) or is_newline(byte) then
-                after_nl =
-                    if byte == carriage_return then
-                        after_cr = advance_one input
-                        when first_byte after_cr is
-                            Ok b -> if b == line_feed then advance_one after_cr else after_cr
-                            Err _ -> after_cr
-                    else
-                        advance_one input
-                skip_line_space after_nl
-            else if byte == solidus then
-                after_slash = advance_one input
-                when first_byte after_slash is
-                    Err _ -> input
-                    Ok b ->
-                        if b == solidus then
-                            skip_line_space (skip_line_comment (advance_one after_slash))
-                        else if b == asterisk then
-                            when skip_block_comment (advance_one after_slash) is
-                                Ok after_comment -> skip_line_space after_comment
-                                Err _ -> input
-                        else
-                            input
-            else
-                input
-
-# Skip whitespace, block comments, and line continuations.
-# Also skips line comments (//) since they can appear within node bodies
-# and effectively terminate the current token.
-# Does NOT skip newlines (node-level only).
-skip_node_space : Str -> Str
-skip_node_space = |input|
-    when first_byte input is
-        Err _ -> input
-        Ok byte ->
-            if is_whitespace(byte) then
-                skip_node_space (advance_one input)
-            else if byte == solidus then
-                after_slash = advance_one input
-                when first_byte after_slash is
-                    Ok b ->
-                        if b == solidus then
-                            # // line comment — skip comment content, leave newline for terminator detection
-                            skip_node_space (skip_line_comment (advance_one after_slash))
-                        else if b == asterisk then
-                            when skip_block_comment (advance_one after_slash) is
-                                Ok after_comment -> skip_node_space after_comment
-                                Err _ -> input
-                        else
-                            input
-                    Err _ -> input
-            else if byte == reverse_solidus then
-                when skip_escline (advance_one input) is
-                    Ok after_esc -> skip_node_space after_esc
-                    Err _ -> input
-            else
-                input
-
-# Skip a single-line comment (// ... up to newline or EOF).
-# The terminating newline is NOT consumed — it remains in the input.
-skip_line_comment : Str -> Str
-skip_line_comment = |input|
-    when first_byte input is
-        Err _ -> input
-        Ok byte ->
-            if is_newline(byte) then
-                input
-            else
-                skip_line_comment (advance_one input)
-
-# Skip a block comment (/* ... */). Supports nested comments.
-skip_block_comment : Str -> Result Str [UnterminatedComment]
-skip_block_comment = |input|
-    when first_byte input is
-        Err _ -> Err UnterminatedComment
-        Ok byte ->
-            if byte == asterisk then
-                after_star = advance_one input
-                when first_byte after_star is
-                    Ok b ->
-                        if b == solidus then Ok (advance_one after_star)
-                        else skip_block_comment after_star
-                    Err _ -> skip_block_comment after_star
-            else if byte == solidus then
-                after_slash = advance_one input
-                when first_byte after_slash is
-                    Ok b ->
-                        if b == asterisk then
-                            when skip_block_comment (advance_one after_slash) is
-                                Ok after_inner -> skip_block_comment after_inner
-                                Err _ -> Err UnterminatedComment
-                        else
-                            skip_block_comment after_slash
-                    Err _ -> skip_block_comment after_slash
-            else
-                skip_block_comment (advance_one input)
-
-# Skip an escape-line continuation: \ (whitespace | // comment)* newline
-skip_escline : Str -> Result Str [EndOfStream]
-skip_escline = |input|
-    when first_byte input is
-        Err _ -> Err EndOfStream
-        Ok byte ->
-            if is_whitespace(byte) then
-                skip_escline (advance_one input)
-            else if byte == solidus then
-                after_slash = advance_one input
-                when first_byte after_slash is
-                    Ok b ->
-                        if b == solidus then Ok (advance_one (skip_line_comment (advance_one after_slash)))
-                        else Ok input
-                    Err _ -> Ok input
-            else if is_newline(byte) then
-                Ok (advance_one input)
-            else
-                Ok input
 
 ###############################################################################
 # Token Lookahead
@@ -232,6 +85,7 @@ read_annotation = |input|
                                     Err MalformedAnnotation
                             Err _ -> Err MalformedAnnotation
 
+# Shadows the import, use fully qualified name
 read_identifier : Str -> Result { string_value : Str, next : Str } [InvalidIdentifier, ReservedKeyword, EndOfBuffer]
 read_identifier = |input|
     clean = skip_node_space input
@@ -313,6 +167,7 @@ read_number_or_ident = |input|
                     Ok { string_value, next } ->
                         Ok { value: KdlStr string_value, next }
 
+# Shadows the import, use fully qualified name
 read_number : Str -> Result { value : KdlValue, next : Str } LexerError
 read_number = |input|
     when Number.read_number input is

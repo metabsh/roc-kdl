@@ -6,7 +6,7 @@ module [
     read_raw_string,
 ]
 
-import Kdl.Stream as Stream
+import Kdl.Stream exposing [advance_one, first_byte, hex_value, is_ascii_digit, is_hex_digit, is_newline, is_whitespace]
 
 ###############################################################################
 # Identifier String
@@ -16,20 +16,20 @@ import Kdl.Stream as Stream
 # (whitespace already skipped by the caller/Lexer).
 read_identifier : Str -> Result { string_value : Str, next : Str } [InvalidIdentifier, ReservedKeyword, EndOfBuffer]
 read_identifier = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err EndOfBuffer
-        Ok first_byte ->
-            when validate_first_char first_byte is
+        Ok first ->
+            when validate_first_char first is
                 Err _ -> Err InvalidIdentifier
                 Ok _ ->
-                    after_first = Stream.advance_one input
-                    when validate_lookahead first_byte after_first is
+                    after_first = advance_one input
+                    when validate_lookahead first after_first is
                         Err _ -> Err InvalidIdentifier
                         Ok _ -> finish_identifier input ""
 
 finish_identifier : Str, Str -> Result { string_value : Str, next : Str } [InvalidIdentifier, ReservedKeyword, EndOfBuffer]
 finish_identifier = |input, acc|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ ->
             if Str.is_empty acc then Err EndOfBuffer
             else if is_reserved_keyword acc then Err ReservedKeyword
@@ -43,7 +43,7 @@ finish_identifier = |input, acc|
                 else Ok { string_value: acc, next: input }
             else
                 char_str = Str.from_utf8 [byte] |> result_or_empty
-                finish_identifier (Stream.advance_one input) (Str.concat acc char_str)
+                finish_identifier (advance_one input) (Str.concat acc char_str)
 
 result_or_empty : Result Str [BadUtf8 _] -> Str
 result_or_empty = |r|
@@ -69,14 +69,14 @@ validate_lookahead = |first, rest|
     if first == 43 or first == 45 then
         # '+' or '-': second char must not be a digit.
         # If second is '.', third must not be a digit.
-        when Stream.first_byte rest is
+        when first_byte rest is
             Err _ -> Ok {}
             Ok second ->
                 if is_ascii_digit second then
                     Err InvalidIdentifier
                 else if second == 46 then
-                    after_dot = Stream.advance_one rest
-                    when Stream.first_byte after_dot is
+                    after_dot = advance_one rest
+                    when first_byte after_dot is
                         Err _ -> Ok {}
                         Ok third ->
                             if is_ascii_digit third then
@@ -86,7 +86,7 @@ validate_lookahead = |first, rest|
                     Ok {}
     else if first == 46 then
         # '.': second char must not be a digit
-        when Stream.first_byte rest is
+        when first_byte rest is
             Err _ -> Ok {}
             Ok second ->
                 if is_ascii_digit second then
@@ -94,9 +94,6 @@ validate_lookahead = |first, rest|
                 else Ok {}
     else
         Ok {}
-
-is_ascii_digit : U8 -> Bool
-is_ascii_digit = |byte| byte >= 48 and byte <= 57
 
 # Check if an identifier string is a reserved keyword in KDL.
 is_reserved_keyword : Str -> Bool
@@ -109,12 +106,12 @@ is_non_ident_char : U8 -> Bool
 is_non_ident_char = |byte|
     when byte is
         40 | 41 | 123 | 125 | 91 | 93 | 47 | 92 | 34 | 35 | 59 | 61 -> Bool.true
-        _ -> Stream.is_whitespace(byte) or Stream.is_newline(byte)
+        _ -> is_whitespace(byte) or is_newline(byte)
 
 # Check if a byte is a valid first character for an identifier
 is_ident_start : U8 -> Bool
 is_ident_start = |byte|
-    !((byte >= 48 and byte <= 57) or is_non_ident_char(byte))
+    !(is_ascii_digit(byte) or is_non_ident_char(byte))
 
 ###############################################################################
 # Quoted String
@@ -123,26 +120,26 @@ is_ident_start = |byte|
 # The input must be positioned at the opening '"' (U+0022).
 read_quoted_string : Str -> Result { string_value : Str, next : Str } [UnterminatedString, InvalidEscape, InvalidUtf8, DisallowedCodePoint]
 read_quoted_string = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err UnterminatedString
         Ok byte ->
             if byte != 34 then
                 Err UnterminatedString
             else
-                read_quoted_body (Stream.advance_one input) ""
+                read_quoted_body (advance_one input) ""
 
 # Recursive helper that accumulates decoded string content
 read_quoted_body : Str, Str -> Result { string_value : Str, next : Str } [UnterminatedString, InvalidEscape, InvalidUtf8, DisallowedCodePoint]
 read_quoted_body = |input, acc|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err UnterminatedString
         Ok byte ->
             if byte == 34 then
                 # closing '"'
-                Ok { string_value: acc, next: Stream.advance_one input }
+                Ok { string_value: acc, next: advance_one input }
             else if byte == 92 then
                 # '\' - escape sequence
-                when read_escape (Stream.advance_one input) is
+                when read_escape (advance_one input) is
                     Err err -> Err err
                     Ok { escaped_str, next } ->
                         read_quoted_body next (Str.concat acc escaped_str)
@@ -151,26 +148,26 @@ read_quoted_body = |input, acc|
                 Err DisallowedCodePoint
             else
                 char_str = Str.from_utf8 [byte] |> result_or_empty
-                read_quoted_body (Stream.advance_one input) (Str.concat acc char_str)
+                read_quoted_body (advance_one input) (Str.concat acc char_str)
 
 # Read an escape sequence after the initial '\'
 read_escape : Str -> Result { escaped_str : Str, next : Str } [UnterminatedString, InvalidEscape]
 read_escape = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err UnterminatedString
         Ok byte ->
             when byte is
-                110 -> Ok { escaped_str: "\n", next: Stream.advance_one input }      # 'n' → LF
-                114 -> Ok { escaped_str: "\r", next: Stream.advance_one input }      # 'r' → CR
-                116 -> Ok { escaped_str: "\t", next: Stream.advance_one input }      # 't' → Tab
-                92  -> Ok { escaped_str: "\\", next: Stream.advance_one input }      # '\\' → backslash
-                34  -> Ok { escaped_str: "\"", next: Stream.advance_one input }      # '\"' → double quote
-                98  -> Ok { escaped_str: from_byte 8, next: Stream.advance_one input }     # 'b' → backspace
-                102 -> Ok { escaped_str: from_byte 12, next: Stream.advance_one input }    # 'f' → form feed
-                115 -> Ok { escaped_str: " ", next: Stream.advance_one input }              # 's' → space
-                117 -> read_unicode_escape (Stream.advance_one input)                       # 'u{' → Unicode
+                110 -> Ok { escaped_str: "\n", next: advance_one input }      # 'n' → LF
+                114 -> Ok { escaped_str: "\r", next: advance_one input }      # 'r' → CR
+                116 -> Ok { escaped_str: "\t", next: advance_one input }      # 't' → Tab
+                92  -> Ok { escaped_str: "\\", next: advance_one input }      # '\\' → backslash
+                34  -> Ok { escaped_str: "\"", next: advance_one input }      # '\"' → double quote
+                98  -> Ok { escaped_str: from_byte 8, next: advance_one input }     # 'b' → backspace
+                102 -> Ok { escaped_str: from_byte 12, next: advance_one input }    # 'f' → form feed
+                115 -> Ok { escaped_str: " ", next: advance_one input }              # 's' → space
+                117 -> read_unicode_escape (advance_one input)                       # 'u{' → Unicode
                 _ ->
-                    if Stream.is_whitespace(byte) or Stream.is_newline(byte) then
+                    if is_whitespace(byte) or is_newline(byte) then
                         skip_escaped_whitespace input
                     else
                         Err InvalidEscape
@@ -182,18 +179,18 @@ from_byte = |byte|
 # Read a \u{XXXXXX} Unicode escape sequence
 read_unicode_escape : Str -> Result { escaped_str : Str, next : Str } [UnterminatedString, InvalidEscape]
 read_unicode_escape = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err UnterminatedString
         Ok byte ->
             if byte != 123 then
                 Err InvalidEscape
             else
-                read_hex_digits (Stream.advance_one input) []
+                read_hex_digits (advance_one input) []
 
 # Accumulate hex digits until closing '}'
 read_hex_digits : Str, List U8 -> Result { escaped_str : Str, next : Str } [UnterminatedString, InvalidEscape]
 read_hex_digits = |input, acc|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err UnterminatedString
         Ok byte ->
             if byte == 125 then
@@ -204,9 +201,9 @@ read_hex_digits = |input, acc|
                         encoded = encode_utf8 scalar
                         when Str.from_utf8 encoded is
                             Err _ -> Err InvalidEscape
-                            Ok s -> Ok { escaped_str: s, next: Stream.advance_one input }
-            else if Stream.is_hex_digit(byte) then
-                read_hex_digits (Stream.advance_one input) (List.append acc byte)
+                            Ok s -> Ok { escaped_str: s, next: advance_one input }
+            else if is_hex_digit(byte) then
+                read_hex_digits (advance_one input) (List.append acc byte)
             else
                 Err InvalidEscape
 
@@ -225,13 +222,13 @@ fold_hex = |digits, acc|
     when digits is
         [] -> Ok acc
         [d, .. as rest] ->
-            if Stream.is_hex_digit(d) then
+            if is_hex_digit(d) then
                 fold_hex rest (acc * 16 + hex_digit_to_u32 d)
             else
                 Err InvalidEscape
 
 hex_digit_to_u32 : U8 -> U32
-hex_digit_to_u32 = |byte| Stream.hex_value byte |> Num.to_u32
+hex_digit_to_u32 = |byte| hex_value byte |> Num.to_u32
 
 # Encode a Unicode scalar value as UTF-8 bytes
 encode_utf8 : U32 -> List U8
@@ -260,11 +257,11 @@ encode_utf8 = |scalar|
 # Skip whitespace after a whitespace escape '\'
 skip_escaped_whitespace : Str -> Result { escaped_str : Str, next : Str } [UnterminatedString, InvalidEscape]
 skip_escaped_whitespace = |input|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err UnterminatedString
         Ok byte ->
-            if Stream.is_whitespace(byte) or Stream.is_newline(byte) then
-                skip_escaped_whitespace (Stream.advance_one input)
+            if is_whitespace(byte) or is_newline(byte) then
+                skip_escaped_whitespace (advance_one input)
             else
                 Ok { escaped_str: "", next: input }
 
@@ -277,7 +274,7 @@ read_raw_string = |input|
     when count_hashes input 0 is
         Err _ -> Err UnterminatedString
         Ok { hash_count, next: after_hashes } ->
-            when Stream.first_byte after_hashes is
+            when first_byte after_hashes is
                 Err _ -> Err UnterminatedString
                 Ok byte ->
                     if byte == 34 then
@@ -293,33 +290,33 @@ read_raw_string = |input|
 
 count_hashes : Str, U64 -> Result { hash_count : U64, next : Str } [EndOfStream]
 count_hashes = |input, count|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Ok { hash_count: count, next: input }
         Ok byte ->
             if byte == 35 then
-                count_hashes (Stream.advance_one input) (count + 1)
+                count_hashes (advance_one input) (count + 1)
             else
                 Ok { hash_count: count, next: input }
 
 read_raw_opening : Str, U64 -> Result { body_start : Str, is_multiline : Bool } [UnterminatedString]
 read_raw_opening = |input, _hash_count|
-    when Stream.first_byte input is
+    when first_byte input is
         Err _ -> Err UnterminatedString
         Ok b1 ->
             if b1 != 34 then Err UnterminatedString
             else
-                after1 = Stream.advance_one input
-                when Stream.first_byte after1 is
+                after1 = advance_one input
+                when first_byte after1 is
                     Err _ -> Ok { body_start: after1, is_multiline: Bool.false }
                     Ok b2 ->
                         if b2 != 34 then Ok { body_start: after1, is_multiline: Bool.false }
                         else
-                            after2 = Stream.advance_one after1
-                            when Stream.first_byte after2 is
+                            after2 = advance_one after1
+                            when first_byte after2 is
                                 Err _ -> Ok { body_start: after2, is_multiline: Bool.false }
                                 Ok b3 ->
                                     Ok {
-                                        body_start: if b3 == 34 then Stream.advance_one after2 else after2,
+                                        body_start: if b3 == 34 then advance_one after2 else after2,
                                         is_multiline: b3 == 34,
                                     }
 
