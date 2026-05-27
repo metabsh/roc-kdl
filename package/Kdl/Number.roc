@@ -46,12 +46,10 @@ read_number = |input|
 read_decimal_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral]
 read_decimal_number = |input|
     after_sign = skip_sign input
-    when collect_number_str after_sign "" is
+    { num_str, next } = (collect_number_str after_sign "")?
+    when Str.to_f64 num_str is
         Err _ -> Err InvalidNumericLiteral
-        Ok { num_str, next } ->
-            when Str.to_f64 num_str is
-                Err _ -> Err InvalidNumericLiteral
-                Ok val -> Ok { float_value: val, next }
+        Ok val -> Ok { float_value: val, next }
 
 skip_sign : Str -> Str
 skip_sign = |input|
@@ -111,12 +109,9 @@ strip_underscores = |s|
 ###############################################################################
 read_hex_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral]
 read_hex_number = |input|
-    when collect_hex_str input "" is
-        Err _ -> Err InvalidNumericLiteral
-        Ok { num_str, next } ->
-            when parse_hex_to_u64 num_str is
-                Err _ -> Err InvalidNumericLiteral
-                Ok val -> Ok { float_value: Num.to_f64 val, next }
+    { num_str, next } = (collect_hex_str input "")?
+    val = (parse_hex_to_u64 num_str)?
+    Ok { float_value: Num.to_f64 val, next }
 
 collect_hex_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
 collect_hex_str = |input, acc|
@@ -136,13 +131,9 @@ collect_hex_str = |input, acc|
 parse_hex_to_u64 : Str -> Result U64 [InvalidNumericLiteral]
 parse_hex_to_u64 = |str|
     bytes = Str.to_utf8 str
-    when List.walk bytes (Ok 0) |state_result, byte|
-        when state_result is
-            Err _ -> Err InvalidNumericLiteral
-            Ok acc -> Ok (acc * 16 + hex_byte_to_u64 byte)
-    is
-        Err _ -> Err InvalidNumericLiteral
-        Ok result -> Ok result
+    List.walk bytes (Ok 0) |state_result, byte|
+        acc = state_result?
+        Ok (acc * 16 + hex_byte_to_u64 byte)
 
 hex_byte_to_u64 : U8 -> U64
 hex_byte_to_u64 = |byte| hex_value byte |> Num.to_u64
@@ -152,12 +143,9 @@ hex_byte_to_u64 = |byte| hex_value byte |> Num.to_u64
 ###############################################################################
 read_octal_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral]
 read_octal_number = |input|
-    when collect_octal_str input "" is
-        Err _ -> Err InvalidNumericLiteral
-        Ok { num_str, next } ->
-            when parse_octal_to_u64 num_str is
-                Err _ -> Err InvalidNumericLiteral
-                Ok val -> Ok { float_value: Num.to_f64 val, next }
+    { num_str, next } = (collect_octal_str input "")?
+    val = (parse_octal_to_u64 num_str)?
+    Ok { float_value: Num.to_f64 val, next }
 
 collect_octal_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
 collect_octal_str = |input, acc|
@@ -180,25 +168,18 @@ collect_octal_str = |input, acc|
 parse_octal_to_u64 : Str -> Result U64 [InvalidNumericLiteral]
 parse_octal_to_u64 = |str|
     bytes = Str.to_utf8 str
-    when List.walk bytes (Ok 0) |state_result, byte|
-        when state_result is
-            Err _ -> Err InvalidNumericLiteral
-            Ok acc -> Ok (acc * 8 + Num.to_u64 (byte - 48))
-    is
-        Err _ -> Err InvalidNumericLiteral
-        Ok result -> Ok result
+    List.walk bytes (Ok 0) |state_result, byte|
+        acc = state_result?
+        Ok (acc * 8 + Num.to_u64 (byte - digit_zero))
 
 ###############################################################################
 # Binary
 ###############################################################################
 read_binary_number : Str -> Result { float_value : F64, next : Str } [InvalidNumericLiteral]
 read_binary_number = |input|
-    when collect_binary_str input "" is
-        Err _ -> Err InvalidNumericLiteral
-        Ok { num_str, next } ->
-            when parse_binary_to_u64 num_str is
-                Err _ -> Err InvalidNumericLiteral
-                Ok val -> Ok { float_value: Num.to_f64 val, next }
+    { num_str, next } = (collect_binary_str input "")?
+    val = (parse_binary_to_u64 num_str)?
+    Ok { float_value: Num.to_f64 val, next }
 
 collect_binary_str : Str, Str -> Result { num_str : Str, next : Str } [InvalidNumericLiteral]
 collect_binary_str = |input, acc|
@@ -221,13 +202,9 @@ collect_binary_str = |input, acc|
 parse_binary_to_u64 : Str -> Result U64 [InvalidNumericLiteral]
 parse_binary_to_u64 = |str|
     bytes = Str.to_utf8 str
-    when List.walk bytes (Ok 0) |state_result, byte|
-        when state_result is
-            Err _ -> Err InvalidNumericLiteral
-            Ok acc -> Ok (acc * 2 + Num.to_u64 (byte - 48))
-    is
-        Err _ -> Err InvalidNumericLiteral
-        Ok result -> Ok result
+    List.walk bytes (Ok 0) |state_result, byte|
+        acc = state_result?
+        Ok (acc * 2 + Num.to_u64 (byte - digit_zero))
 
 ###############################################################################
 # Special Number Types: Inf, -Inf, NaN
