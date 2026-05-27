@@ -6,7 +6,7 @@ module [
     read_value,
 ]
 
-import Kdl.Stream exposing [advance_one, carriage_return, digit_nine, digit_zero, first_byte, hyphen_minus, left_brace, left_paren, line_feed, number_sign, quotation_mark, right_brace, right_paren, skip_node_space]
+import Kdl.Stream exposing [advance_one, carriage_return, digit_nine, digit_zero, first_byte, hyphen_minus, left_brace, left_paren, line_feed, number_sign, quotation_mark, right_brace, right_paren, semicolon, skip_node_space]
 import Kdl.String as String
 import Kdl.Number as Number
 import Kdl.Common exposing [KdlValue]
@@ -49,7 +49,7 @@ peek_token = |input|
                 when first_byte after_dash is
                     Ok b -> if b >= digit_zero and b <= digit_nine then NumericLiteral else IdentifierStart
                     Err _ -> IdentifierStart
-            else if byte == 59 or byte == line_feed or byte == carriage_return then
+            else if byte == semicolon or byte == line_feed or byte == carriage_return then
                 NodeTerminator
             else if byte == left_brace then
                 ChildStart

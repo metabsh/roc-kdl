@@ -144,14 +144,14 @@ skip_terminator : Str -> Str
 skip_terminator = |str|
     when first_byte str is
         Err _ -> str
-        Ok 59 -> advance_one str  # ';'
-        _ -> skip_newline str
+        Ok byte ->
+            if byte == semicolon then advance_one str else skip_newline str
 
 ###############################################################################
 # Character Classification
 ###############################################################################
 is_whitespace : U8 -> Bool
-is_whitespace = |c| c == 9 or c == 32  # TAB, SPACE
+is_whitespace = |c| c == tab or c == space
 
 expect
     is_whitespace 32 == Bool.true
@@ -161,7 +161,7 @@ is_newline = |c| c == line_feed or c == carriage_return
 
 is_hex_digit : U8 -> Bool
 is_hex_digit = |c|
-    (c >= 48 and c <= 57) or (c >= 65 and c <= 70) or (c >= 97 and c <= 102)
+    (c >= digit_zero and c <= digit_nine) or (c >= 65 and c <= 70) or (c >= 97 and c <= 102)
 
 expect
     is_hex_digit 70 == Bool.true

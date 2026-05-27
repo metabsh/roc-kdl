@@ -3,7 +3,7 @@ module [
     read_number,
 ]
 
-import Kdl.Stream exposing [advance_one, first_byte, hex_value, is_hex_digit]
+import Kdl.Stream exposing [advance_one, digit_nine, digit_one, digit_zero, first_byte, full_stop, hex_value, hyphen_minus, is_hex_digit, number_sign, plus_sign, underscore]
 
 ###############################################################################
 # IEEE 754 constants
@@ -26,7 +26,7 @@ read_number = |input|
     when first_byte input is
         Err _ -> Err InvalidNumericLiteral
         Ok byte ->
-            if byte == 48 then  # '0'
+            if byte == digit_zero then  # '0'
                 after_zero = advance_one input
                 when first_byte after_zero is
                     Err _ ->
@@ -58,7 +58,7 @@ skip_sign = |input|
     when first_byte input is
         Err _ -> input
         Ok byte ->
-            if byte == 43 or byte == 45 then advance_one input else input  # '+' or '-'
+            if byte == plus_sign or byte == hyphen_minus then advance_one input else input  # '+' or '-'
 
 # Collect a number string (digits, '.', 'e', 'E', '+', '-', '_').
 # Stops at the first character that isn't part of a number.
@@ -70,17 +70,17 @@ collect_number_str = |input, acc|
             if Str.is_empty acc then Err InvalidNumericLiteral
             else Ok { num_str: strip_underscores acc, next: input }
         Ok byte ->
-            if byte >= 48 and byte <= 57 then
+            if byte >= digit_zero and byte <= digit_nine then
                 char_str = Str.from_utf8 [byte] |> result_or_empty
                 collect_number_str (advance_one input) (Str.concat acc char_str)
-            else if byte == 46 then
+            else if byte == full_stop then
                 # '.' only valid if we've already seen a digit
                 if Str.is_empty acc then
                     Err InvalidNumericLiteral
                 else
                     char_str = Str.from_utf8 [byte] |> result_or_empty
                     collect_number_str (advance_one input) (Str.concat acc char_str)
-            else if (byte == 69 or byte == 101) or byte == 95 or byte == 43 or byte == 45 then
+            else if (byte == 69 or byte == 101) or byte == underscore or byte == plus_sign or byte == hyphen_minus then
                 # 'e', 'E', '_', '+', '-' only valid after at least one digit
                 if Str.is_empty acc then
                     Err InvalidNumericLiteral
@@ -101,7 +101,7 @@ result_or_empty = |r|
 strip_underscores : Str -> Str
 strip_underscores = |s|
     bytes = Str.to_utf8 s
-    filtered = List.keep_if bytes |b| b != 95
+    filtered = List.keep_if bytes |b| b != underscore
     when Str.from_utf8 filtered is
         Ok s2 -> s2
         Err _ -> ""
@@ -125,7 +125,7 @@ collect_hex_str = |input, acc|
             if Str.is_empty acc then Err InvalidNumericLiteral
             else Ok { num_str: strip_underscores acc, next: input }
         Ok byte ->
-            if is_hex_digit(byte) or byte == 95 then
+            if is_hex_digit(byte) or byte == underscore then
                 char_str = Str.from_utf8 [byte] |> result_or_empty
                 collect_hex_str (advance_one input) (Str.concat acc char_str)
             else if Str.is_empty acc then
@@ -166,10 +166,10 @@ collect_octal_str = |input, acc|
             if Str.is_empty acc then Err InvalidNumericLiteral
             else Ok { num_str: acc, next: input }
         Ok byte ->
-            if (byte >= 48 and byte <= 55) or byte == 95 then
+            if (byte >= digit_zero and byte <= 55) or byte == underscore then
                 char_str = Str.from_utf8 [byte] |> result_or_empty
                 collect_octal_str (advance_one input) (Str.concat acc char_str)
-            else if byte >= 48 and byte <= 57 then
+            else if byte >= digit_zero and byte <= digit_nine then
                 # 8-9: invalid octal digit
                 Err InvalidNumericLiteral
             else if Str.is_empty acc then
@@ -207,7 +207,7 @@ collect_binary_str = |input, acc|
             if Str.is_empty acc then Err InvalidNumericLiteral
             else Ok { num_str: acc, next: input }
         Ok byte ->
-            if byte == 48 or byte == 49 or byte == 95 then
+            if byte == digit_zero or byte == digit_one or byte == underscore then
                 char_str = Str.from_utf8 [byte] |> result_or_empty
                 collect_binary_str (advance_one input) (Str.concat acc char_str)
             else if byte >= 50 and byte <= 57 then
@@ -237,7 +237,7 @@ read_keyword_number = |input|
     when first_byte input is
         Err _ -> Err EndOfBuffer
         Ok byte ->
-            if byte != 35 then Err InvalidNumericLiteral  # '#'
+            if byte != number_sign then Err InvalidNumericLiteral  # '#'
             else
                 after_hash = advance_one input
                 when first_byte after_hash is

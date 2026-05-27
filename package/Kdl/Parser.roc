@@ -2,7 +2,7 @@ module [
     parse,
 ]
 
-import Kdl.Stream exposing [advance_one, first_byte, skip_line_space, skip_node_space, skip_terminator]
+import Kdl.Stream exposing [advance_one, equals_sign, first_byte, skip_line_space, skip_node_space, skip_terminator]
 import Kdl.Lexer exposing [peek_token, read_annotation, read_identifier, read_value]
 import Kdl.Common exposing [Entry, KdlError, KdlNode]
 
@@ -34,7 +34,7 @@ read_entry = |input|
             when value is
                 KdlStr str_val ->
                     after_id = skip_node_space next
-                    if first_byte after_id == Ok 61 then
+                    if first_byte after_id == Ok equals_sign then
                         after_equals = skip_node_space (advance_one after_id)
                         when read_value after_equals is
                             Err _ -> Err KdlFormatError

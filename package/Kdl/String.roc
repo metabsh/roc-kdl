@@ -6,7 +6,7 @@ module [
     read_raw_string,
 ]
 
-import Kdl.Stream exposing [advance_one, first_byte, hex_value, is_ascii_digit, is_hex_digit, is_newline, is_whitespace]
+import Kdl.Stream exposing [advance_one, first_byte, full_stop, hex_value, hyphen_minus, is_ascii_digit, is_hex_digit, is_newline, is_whitespace, left_brace, number_sign, plus_sign, quotation_mark, reverse_solidus, right_brace]
 
 ###############################################################################
 # Identifier String
@@ -66,7 +66,7 @@ validate_first_char = |byte|
 # Call this with the first byte and the remaining input after it.
 validate_lookahead : U8, Str -> Result {} [InvalidIdentifier]
 validate_lookahead = |first, rest|
-    if first == 43 or first == 45 then
+    if first == plus_sign or first == hyphen_minus then
         # '+' or '-': second char must not be a digit.
         # If second is '.', third must not be a digit.
         when first_byte rest is
@@ -74,7 +74,7 @@ validate_lookahead = |first, rest|
             Ok second ->
                 if is_ascii_digit second then
                     Err InvalidIdentifier
-                else if second == 46 then
+                else if second == full_stop then
                     after_dot = advance_one rest
                     when first_byte after_dot is
                         Err _ -> Ok {}
@@ -84,7 +84,7 @@ validate_lookahead = |first, rest|
                             else Ok {}
                 else
                     Ok {}
-    else if first == 46 then
+    else if first == full_stop then
         # '.': second char must not be a digit
         when first_byte rest is
             Err _ -> Ok {}
@@ -123,7 +123,7 @@ read_quoted_string = |input|
     when first_byte input is
         Err _ -> Err UnterminatedString
         Ok byte ->
-            if byte != 34 then
+            if byte != quotation_mark then
                 Err UnterminatedString
             else
                 read_quoted_body (advance_one input) ""
@@ -134,10 +134,10 @@ read_quoted_body = |input, acc|
     when first_byte input is
         Err _ -> Err UnterminatedString
         Ok byte ->
-            if byte == 34 then
+            if byte == quotation_mark then
                 # closing '"'
                 Ok { string_value: acc, next: advance_one input }
-            else if byte == 92 then
+            else if byte == reverse_solidus then
                 # '\' - escape sequence
                 when read_escape (advance_one input) is
                     Err err -> Err err
@@ -182,7 +182,7 @@ read_unicode_escape = |input|
     when first_byte input is
         Err _ -> Err UnterminatedString
         Ok byte ->
-            if byte != 123 then
+            if byte != left_brace then
                 Err InvalidEscape
             else
                 read_hex_digits (advance_one input) []
@@ -193,7 +193,7 @@ read_hex_digits = |input, acc|
     when first_byte input is
         Err _ -> Err UnterminatedString
         Ok byte ->
-            if byte == 125 then
+            if byte == right_brace then
                 # '}'
                 when parse_hex_scalar acc is
                     Err _ -> Err InvalidEscape
@@ -277,7 +277,7 @@ read_raw_string = |input|
             when first_byte after_hashes is
                 Err _ -> Err UnterminatedString
                 Ok byte ->
-                    if byte == 34 then
+                    if byte == quotation_mark then
                         when read_raw_opening after_hashes hash_count is
                             Err err -> Err err
                             Ok { body_start, is_multiline } ->
@@ -293,7 +293,7 @@ count_hashes = |input, count|
     when first_byte input is
         Err _ -> Ok { hash_count: count, next: input }
         Ok byte ->
-            if byte == 35 then
+            if byte == number_sign then
                 count_hashes (advance_one input) (count + 1)
             else
                 Ok { hash_count: count, next: input }
