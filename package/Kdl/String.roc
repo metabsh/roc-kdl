@@ -6,7 +6,7 @@ module [
     read_raw_string,
 ]
 
-import Kdl.Stream exposing [advance_one, first_byte, full_stop, hex_value, hyphen_minus, is_ascii_digit, is_hex_digit, is_newline, is_whitespace, left_brace, number_sign, plus_sign, quotation_mark, reverse_solidus, right_brace]
+import Kdl.Stream exposing [advance_one, first_byte, full_stop, hex_value, hyphen_minus, is_ascii_digit, is_between, is_hex_digit, is_newline, is_whitespace, left_brace, number_sign, plus_sign, quotation_mark, reverse_solidus, right_brace]
 
 ###############################################################################
 # Identifier String
@@ -143,7 +143,7 @@ read_quoted_body = |input, acc|
                     Err err -> Err err
                     Ok { escaped_str, next } ->
                         read_quoted_body next (Str.concat acc escaped_str)
-            else if byte == 0 or (byte >= 1 and byte <= 8) or (byte >= 14 and byte <= 31) or byte == 127 then
+            else if is_between(byte, 0, 8) or is_between(byte, 14, 31) or byte == 127 then
                 # Disallowed literal code points
                 Err DisallowedCodePoint
             else

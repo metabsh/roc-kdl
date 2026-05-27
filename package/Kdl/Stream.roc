@@ -12,6 +12,7 @@ module [
     hex_value,
     hyphen_minus,
     is_ascii_digit,
+    is_between,
     is_hex_digit,
     is_newline,
     is_whitespace,
@@ -161,20 +162,23 @@ is_newline = |c| c == line_feed or c == carriage_return
 
 is_hex_digit : U8 -> Bool
 is_hex_digit = |c|
-    (c >= digit_zero and c <= digit_nine) or (c >= 65 and c <= 70) or (c >= 97 and c <= 102)
+    (is_ascii_digit(c)) or is_between(c, 65, 70) or is_between(c, 97, 102)
 
 expect
     is_hex_digit 70 == Bool.true
 
 hex_value : U8 -> U8
 hex_value = |c|
-    if c >= 48 and c <= 57 then c - 48
-    else if c >= 65 and c <= 70 then c - 65 + 10
-    else if c >= 97 and c <= 102 then c - 97 + 10
+    if is_ascii_digit(c) then c - digit_zero
+    else if is_between(c, 65, 70) then c - 65 + 10
+    else if is_between(c, 97, 102) then c - 97 + 10
     else 0
 
 is_ascii_digit : U8 -> Bool
 is_ascii_digit = |c| c >= digit_zero and c <= digit_nine
+
+is_between : U8, U8, U8 -> Bool
+is_between = |byte, low, high| byte >= low and byte <= high
 
 ###############################################################################
 # Layout Skipping
