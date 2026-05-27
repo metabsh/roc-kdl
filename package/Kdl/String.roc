@@ -6,7 +6,7 @@ module [
     read_raw_string,
 ]
 
-import Kdl.Stream exposing [advance_one, first_byte, full_stop, hex_value, hyphen_minus, is_ascii_digit, is_between, is_hex_digit, is_newline, is_whitespace, left_brace, number_sign, plus_sign, quotation_mark, reverse_solidus, right_brace]
+import Kdl.Stream exposing [first_byte, full_stop, hex_value, hyphen_minus, is_ascii_digit, is_between, is_hex_digit, is_newline, is_whitespace, left_brace, number_sign, plus_sign, quotation_mark, reverse_solidus, right_brace, skip_one]
 
 ###############################################################################
 # Identifier String
@@ -22,7 +22,7 @@ read_identifier = |input|
             when validate_first_char first is
                 Err _ -> Err InvalidIdentifier
                 Ok _ ->
-                    after_first = advance_one input
+                    after_first = skip_one input
                     when validate_lookahead first after_first is
                         Err _ -> Err InvalidIdentifier
                         Ok _ -> finish_identifier input ""
@@ -43,7 +43,7 @@ finish_identifier = |input, acc|
                 else Ok { string_value: acc, next: input }
             else
                 char_str = Str.from_utf8 [byte] |> result_or_empty
-                finish_identifier (advance_one input) (Str.concat acc char_str)
+                finish_identifier (skip_one input) (Str.concat acc char_str)
 
 result_or_empty : Result Str [BadUtf8 _] -> Str
 result_or_empty = |r|
@@ -75,7 +75,7 @@ validate_lookahead = |first, rest|
                 if is_ascii_digit second then
                     Err InvalidIdentifier
                 else if second == full_stop then
-                    after_dot = advance_one rest
+                    after_dot = skip_one rest
                     when first_byte after_dot is
                         Err _ -> Ok {}
                         Ok third ->
@@ -126,7 +126,7 @@ read_quoted_string = |input|
             if byte != quotation_mark then
                 Err UnterminatedString
             else
-                read_quoted_body (advance_one input) ""
+                read_quoted_body (skip_one input) ""
 
 # Recursive helper that accumulates decoded string content
 read_quoted_body : Str, Str -> Result { string_value : Str, next : Str } [UnterminatedString, InvalidEscape, InvalidUtf8, DisallowedCodePoint]
@@ -136,10 +136,10 @@ read_quoted_body = |input, acc|
         Ok byte ->
             if byte == quotation_mark then
                 # closing '"'
-                Ok { string_value: acc, next: advance_one input }
+                Ok { string_value: acc, next: skip_one input }
             else if byte == reverse_solidus then
                 # '\' - escape sequence
-                when read_escape (advance_one input) is
+                when read_escape (skip_one input) is
                     Err err -> Err err
                     Ok { escaped_str, next } ->
                         read_quoted_body next (Str.concat acc escaped_str)
@@ -148,7 +148,7 @@ read_quoted_body = |input, acc|
                 Err DisallowedCodePoint
             else
                 char_str = Str.from_utf8 [byte] |> result_or_empty
-                read_quoted_body (advance_one input) (Str.concat acc char_str)
+                read_quoted_body (skip_one input) (Str.concat acc char_str)
 
 # Read an escape sequence after the initial '\'
 read_escape : Str -> Result { escaped_str : Str, next : Str } [UnterminatedString, InvalidEscape]
@@ -157,15 +157,15 @@ read_escape = |input|
         Err _ -> Err UnterminatedString
         Ok byte ->
             when byte is
-                110 -> Ok { escaped_str: "\n", next: advance_one input }      # 'n' → LF
-                114 -> Ok { escaped_str: "\r", next: advance_one input }      # 'r' → CR
-                116 -> Ok { escaped_str: "\t", next: advance_one input }      # 't' → Tab
-                92  -> Ok { escaped_str: "\\", next: advance_one input }      # '\\' → backslash
-                34  -> Ok { escaped_str: "\"", next: advance_one input }      # '\"' → double quote
-                98  -> Ok { escaped_str: from_byte 8, next: advance_one input }     # 'b' → backspace
-                102 -> Ok { escaped_str: from_byte 12, next: advance_one input }    # 'f' → form feed
-                115 -> Ok { escaped_str: " ", next: advance_one input }              # 's' → space
-                117 -> read_unicode_escape (advance_one input)                       # 'u{' → Unicode
+                110 -> Ok { escaped_str: "\n", next: skip_one input }      # 'n' → LF
+                114 -> Ok { escaped_str: "\r", next: skip_one input }      # 'r' → CR
+                116 -> Ok { escaped_str: "\t", next: skip_one input }      # 't' → Tab
+                92  -> Ok { escaped_str: "\\", next: skip_one input }      # '\\' → backslash
+                34  -> Ok { escaped_str: "\"", next: skip_one input }      # '\"' → double quote
+                98  -> Ok { escaped_str: from_byte 8, next: skip_one input }     # 'b' → backspace
+                102 -> Ok { escaped_str: from_byte 12, next: skip_one input }    # 'f' → form feed
+                115 -> Ok { escaped_str: " ", next: skip_one input }              # 's' → space
+                117 -> read_unicode_escape (skip_one input)                       # 'u{' → Unicode
                 _ ->
                     if is_whitespace(byte) or is_newline(byte) then
                         skip_escaped_whitespace input
@@ -185,7 +185,7 @@ read_unicode_escape = |input|
             if byte != left_brace then
                 Err InvalidEscape
             else
-                read_hex_digits (advance_one input) []
+                read_hex_digits (skip_one input) []
 
 # Accumulate hex digits until closing '}'
 read_hex_digits : Str, List U8 -> Result { escaped_str : Str, next : Str } [UnterminatedString, InvalidEscape]
@@ -201,9 +201,9 @@ read_hex_digits = |input, acc|
                         encoded = encode_utf8 scalar
                         when Str.from_utf8 encoded is
                             Err _ -> Err InvalidEscape
-                            Ok s -> Ok { escaped_str: s, next: advance_one input }
+                            Ok s -> Ok { escaped_str: s, next: skip_one input }
             else if is_hex_digit(byte) then
-                read_hex_digits (advance_one input) (List.append acc byte)
+                read_hex_digits (skip_one input) (List.append acc byte)
             else
                 Err InvalidEscape
 
@@ -261,7 +261,7 @@ skip_escaped_whitespace = |input|
         Err _ -> Err UnterminatedString
         Ok byte ->
             if is_whitespace(byte) or is_newline(byte) then
-                skip_escaped_whitespace (advance_one input)
+                skip_escaped_whitespace (skip_one input)
             else
                 Ok { escaped_str: "", next: input }
 
@@ -294,7 +294,7 @@ count_hashes = |input, count|
         Err _ -> Ok { hash_count: count, next: input }
         Ok byte ->
             if byte == number_sign then
-                count_hashes (advance_one input) (count + 1)
+                count_hashes (skip_one input) (count + 1)
             else
                 Ok { hash_count: count, next: input }
 
@@ -305,18 +305,18 @@ read_raw_opening = |input, _hash_count|
         Ok b1 ->
             if b1 != 34 then Err UnterminatedString
             else
-                after1 = advance_one input
+                after1 = skip_one input
                 when first_byte after1 is
                     Err _ -> Ok { body_start: after1, is_multiline: Bool.false }
                     Ok b2 ->
                         if b2 != 34 then Ok { body_start: after1, is_multiline: Bool.false }
                         else
-                            after2 = advance_one after1
+                            after2 = skip_one after1
                             when first_byte after2 is
                                 Err _ -> Ok { body_start: after2, is_multiline: Bool.false }
                                 Ok b3 ->
                                     Ok {
-                                        body_start: if b3 == 34 then advance_one after2 else after2,
+                                        body_start: if b3 == 34 then skip_one after2 else after2,
                                         is_multiline: b3 == 34,
                                     }
 

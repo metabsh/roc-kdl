@@ -1,5 +1,4 @@
 module [
-    advance_one,
     asterisk,
     carriage_return,
     digit_nine,
@@ -30,6 +29,7 @@ module [
     skip_line_space,
     skip_newline,
     skip_node_space,
+    skip_one,
     skip_terminator,
     skip_while,
     solidus,
@@ -69,7 +69,7 @@ tab = 9                 # '\t'
 underscore = 95         # '_'
 
 ###############################################################################
-# Cursor Primities
+# Cursor Primitives
 ###############################################################################
 starts_with : Str, Str -> Bool
 starts_with = |str, prefix| Str.starts_with str prefix
@@ -105,10 +105,6 @@ skip_bytes = |str, n|
     when Str.from_utf8 remaining is
         Ok s -> s
         Err _ -> ""
-
-# Advance past a single byte.
-advance_one : Str -> Str
-advance_one = |str| skip_bytes str 1
 
 # Skip while the predicate holds on the first byte.
 skip_while : Str, (U8 -> Bool) -> Str

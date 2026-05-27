@@ -6,7 +6,7 @@ module [
     read_value,
 ]
 
-import Kdl.Stream exposing [advance_one, carriage_return, digit_nine, digit_zero, first_byte, hyphen_minus, left_brace, left_paren, line_feed, number_sign, quotation_mark, right_brace, right_paren, semicolon, skip_node_space]
+import Kdl.Stream exposing [carriage_return, digit_nine, digit_zero, first_byte, hyphen_minus, left_brace, left_paren, line_feed, number_sign, quotation_mark, right_brace, right_paren, semicolon, skip_node_space, skip_one]
 import Kdl.String as String
 import Kdl.Number as Number
 import Kdl.Common exposing [KdlValue]
@@ -45,7 +45,7 @@ peek_token = |input|
             else if byte == quotation_mark then
                 StringLiteral
             else if byte == hyphen_minus then
-                after_dash = advance_one clean
+                after_dash = skip_one clean
                 when first_byte after_dash is
                     Ok b -> if b >= digit_zero and b <= digit_nine then NumericLiteral else IdentifierStart
                     Err _ -> IdentifierStart
@@ -71,7 +71,7 @@ read_annotation = |input|
         Ok byte ->
             if byte != left_paren then Err NoAnnotationFound
             else
-                after_open = advance_one clean
+                after_open = skip_one clean
                 inner_start = skip_node_space after_open
                 when String.read_identifier inner_start is
                     Err _ -> Err MalformedAnnotation
@@ -80,7 +80,7 @@ read_annotation = |input|
                         when first_byte before_close is
                             Ok b ->
                                 if b == right_paren then
-                                    Ok { annotation_name: string_value, next: advance_one before_close }
+                                    Ok { annotation_name: string_value, next: skip_one before_close }
                                 else
                                     Err MalformedAnnotation
                             Err _ -> Err MalformedAnnotation
@@ -131,7 +131,7 @@ read_hash_value = |input|
 read_keyword : Str -> Result { word : Str, after : Str } LexerError
 read_keyword = |input|
     # Skip the '#' character first
-    after_hash = advance_one input
+    after_hash = skip_one input
     loop_keyword after_hash ""
 
 loop_keyword : Str, Str -> Result { word : Str, after : Str } LexerError
@@ -141,7 +141,7 @@ loop_keyword = |input, acc|
             if Str.is_empty acc then Err FormatError else Ok { word: acc, after: input }
         Ok byte ->
             if (byte >= 97 and byte <= 122) or byte == 45 then  # a-z, '-'
-                loop_keyword (advance_one input) (Str.concat acc (Str.from_utf8 [byte] |> result_or_empty))
+                loop_keyword (skip_one input) (Str.concat acc (Str.from_utf8 [byte] |> result_or_empty))
             else if Str.is_empty acc then
                 Err FormatError
             else
@@ -155,7 +155,7 @@ result_or_empty = |r|
 
 read_number_or_ident : Str -> Result { value : KdlValue, next : Str } LexerError
 read_number_or_ident = |input|
-    after_dash = advance_one input
+    after_dash = skip_one input
     when first_byte after_dash is
         Err _ -> Ok { value: KdlStr "-", next: after_dash }
         Ok next_byte ->

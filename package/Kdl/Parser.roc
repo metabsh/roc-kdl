@@ -2,7 +2,7 @@ module [
     parse,
 ]
 
-import Kdl.Stream exposing [advance_one, equals_sign, first_byte, skip_line_space, skip_node_space, skip_terminator]
+import Kdl.Stream exposing [equals_sign, first_byte, skip_line_space, skip_node_space, skip_one, skip_terminator]
 import Kdl.Lexer exposing [peek_token, read_annotation, read_identifier, read_value]
 import Kdl.Common exposing [Entry, KdlError, KdlNode]
 
@@ -19,11 +19,11 @@ parse = |input|
 # Parse a children block: skips '{', parses nodes until '}', skips '}'.
 parse_child_block : Str -> Result { children : List KdlNode, next : Str } KdlError
 parse_child_block = |input|
-    inside = advance_one input
+    inside = skip_one input
     when parse_nodes inside [] is
         Err err -> Err err
         Ok { nodes, next: after_children } ->
-            Ok { children: nodes, next: advance_one after_children }
+            Ok { children: nodes, next: skip_one after_children }
 
 # Read a value (argument or property key), optionally followed by '=' .
 read_entry : Str -> Result { entry : Entry, next : Str } KdlError
@@ -35,7 +35,7 @@ read_entry = |input|
                 KdlStr str_val ->
                     after_id = skip_node_space next
                     if first_byte after_id == Ok equals_sign then
-                        after_equals = skip_node_space (advance_one after_id)
+                        after_equals = skip_node_space (skip_one after_id)
                         when read_value after_equals is
                             Err _ -> Err KdlFormatError
                             Ok { value: prop_val, next: after_value } ->
