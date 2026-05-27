@@ -3,9 +3,12 @@ module [
     asterisk,
     carriage_return,
     digit_nine,
+    digit_one,
     digit_zero,
     drop_prefix,
+    equals_sign,
     first_byte,
+    full_stop,
     hex_value,
     hyphen_minus,
     is_ascii_digit,
@@ -16,10 +19,12 @@ module [
     left_paren,
     line_feed,
     number_sign,
+    plus_sign,
     quotation_mark,
     reverse_solidus,
     right_brace,
     right_paren,
+    semicolon,
     skip_bytes,
     skip_line_space,
     skip_newline,
@@ -27,26 +32,40 @@ module [
     skip_terminator,
     skip_while,
     solidus,
+    space,
     starts_with,
+    tab,
+    underscore,
 ]
 
 ###############################################################################
 # ASCII Constants (KDL Spec Names)
 ###############################################################################
+# KDL spec names
 quotation_mark = 34     # '"'
+hyphen_minus = 45       # '-'
 number_sign = 35        # '#'
-asterisk = 42           # '*'
+solidus = 47            # '/'
+reverse_solidus = 92    # '\'
 left_paren = 40         # '('
 right_paren = 41        # ')'
 left_brace = 123        # '{'
 right_brace = 125       # '}'
-hyphen_minus = 45       # '-'
-solidus = 47            # '/'
-reverse_solidus = 92    # '\'
 line_feed = 10          # '\n'
 carriage_return = 13    # '\r'
-digit_zero = 48
-digit_nine = 57
+asterisk = 42           # '*'
+
+# ASCII character names
+digit_zero = 48         # '0'
+digit_one = 49          # '1'
+digit_nine = 57         # '9'
+equals_sign = 61        # '='
+full_stop = 46          # '.'
+plus_sign = 43          # '+'
+semicolon = 59          # ';'
+space = 32              # ' '
+tab = 9                 # '\t'
+underscore = 95         # '_'
 
 ###############################################################################
 # Cursor Primities
