@@ -68,6 +68,36 @@ space = 32              # ' '
 tab = 9                 # '\t'
 underscore = 95         # '_'
 
+# Unicode whitespace strings - UTF-8 encoded per KDL 2.0 spec §Whitespace
+unicode_whitespace : List Str
+unicode_whitespace = [
+    "\u(00A0)",  # no-break space
+    "\u(1680)",  # ogham space mark
+    "\u(2000)",  # en quad
+    "\u(2001)",  # em quad
+    "\u(2002)",  # en space
+    "\u(2003)",  # em space
+    "\u(2004)",  # three-per-em space
+    "\u(2005)",  # four-per-em space
+    "\u(2006)",  # six-per-em space
+    "\u(2007)",  # figure space
+    "\u(2008)",  # punctuation space
+    "\u(2009)",  # thin space
+    "\u(200A)",  # hair space
+    "\u(202F)",  # narrow no-break space
+    "\u(205F)",  # medium mathematical space
+    "\u(3000)",  # ideographic space
+    "\u(FEFF)",  # zero width no-break space (BOM)
+]
+
+# Unicode newline strings - UTF-8 encoded per KDL 2.0 spec §Newline
+unicode_newline : List Str
+unicode_newline = [
+    "\u(0085)",  # next line (NEL)
+    "\u(2028)",  # line separator
+    "\u(2029)",  # paragraph separator
+]
+
 ###############################################################################
 # Cursor Primitives
 ###############################################################################
@@ -144,6 +174,12 @@ skip_escline = |input|
         Ok byte ->
             if is_whitespace(byte) then
                 skip_escline (skip_one input)
+            else if byte >= 128 then
+                after = skip_unicode_whitespace input
+                if after != input then skip_escline after
+                else
+                    after_nl = skip_unicode_newline input
+                    if after_nl != input then Ok after_nl else Ok input
             else if byte == solidus then
                 after_slash = skip_one input
                 when first_byte after_slash is
@@ -165,6 +201,9 @@ skip_line_comment = |input|
         Ok byte ->
             if is_newline(byte) then
                 input
+            else if byte >= 128 then
+                after = skip_unicode_newline input
+                if after != input then input else skip_line_comment (skip_one input)
             else
                 skip_line_comment (skip_one input)
 
@@ -185,6 +224,12 @@ skip_line_space = |input|
                     else
                         skip_one input
                 skip_line_space after_nl
+            else if byte >= 128 then
+                after = skip_unicode_whitespace input
+                if after != input then skip_line_space after
+                else
+                    after_nl = skip_unicode_newline input
+                    if after_nl != input then skip_line_space after_nl else input
             else if byte == solidus then
                 after_slash = skip_one input
                 when first_byte after_slash is
@@ -202,6 +247,7 @@ skip_line_space = |input|
                 input
 
 # Skip past a single newline sequence. CRLF is consumed as one unit.
+# Also handles Unicode newlines (U+0085, U+2028, U+2029) and VT/FF (U+000B, U+000C).
 skip_newline : Str -> Str
 skip_newline = |str|
     when first_byte str is
@@ -212,8 +258,11 @@ skip_newline = |str|
                 when first_byte after_cr is
                     Ok b -> if b == line_feed then skip_one after_cr else after_cr
                     Err _ -> after_cr
-            else if byte == line_feed then
+            else if byte == line_feed or byte == 11 or byte == 12 then
                 skip_one str
+            else if byte >= 128 then
+                after = skip_unicode_newline str
+                if after != str then after else str
             else
                 str
 
@@ -227,6 +276,9 @@ skip_node_space = |input|
         Ok byte ->
             if is_whitespace(byte) then
                 skip_node_space (skip_one input)
+            else if byte >= 128 then
+                after = skip_unicode_whitespace input
+                if after != input then skip_node_space after else input
             else if byte == solidus then
                 after_slash = skip_one input
                 when first_byte after_slash is
@@ -259,6 +311,22 @@ skip_terminator = |str|
         Err _ -> str
         Ok byte ->
             if byte == semicolon then skip_one str else skip_newline str
+
+# Skip past a Unicode whitespace character if the input starts with one.
+# Returns the unchanged input if no Unicode whitespace prefix matches.
+skip_unicode_whitespace : Str -> Str
+skip_unicode_whitespace = |input|
+    List.walk_until unicode_whitespace input |state, ws|
+        if Str.starts_with(state, ws) then Break (Str.drop_prefix(state, ws))
+        else Continue state
+
+# Skip past a Unicode newline character if the input starts with one.
+# Returns the unchanged input if no Unicode newline prefix matches.
+skip_unicode_newline : Str -> Str
+skip_unicode_newline = |input|
+    List.walk_until unicode_newline input |state, nl|
+        if Str.starts_with(state, nl) then Break (Str.drop_prefix(state, nl))
+        else Continue state
 
 # Skip while the predicate holds on the first byte.
 skip_while : Str, (U8 -> Bool) -> Str

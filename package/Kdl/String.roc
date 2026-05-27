@@ -106,7 +106,7 @@ is_non_ident_char : U8 -> Bool
 is_non_ident_char = |byte|
     when byte is
         40 | 41 | 123 | 125 | 91 | 93 | 47 | 92 | 34 | 35 | 59 | 61 -> Bool.true
-        _ -> is_whitespace(byte) or is_newline(byte)
+        _ -> is_whitespace(byte) or is_newline(byte) or byte >= 128
 
 # Check if a byte is a valid first character for an identifier
 is_ident_start : U8 -> Bool
